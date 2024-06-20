@@ -1,3 +1,3 @@
-# C Utility Tracker
+# C Utility Tracker (CUT)
 
 

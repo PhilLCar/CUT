@@ -13,24 +13,26 @@
 
 #define MAX_LENGTH_NAME 128
 #define MAX_LENGTH_PATH 1024
-#define CACHE_PATH   "res/.cache"
+#define CACHE_PATH   ".cut/.cache"
 #define DEPENDS_PATH ".cut/depends.list"
 
 /* CUT BOOTSTRAP:
  * This is the bootstrap for CUT, it runs without CUT dependencies
  */
 
-// TODO: This is terrible code, refactor ASAP
-
 ////////////////////////////////////////////////////////////////////////////////
 // STRUCTS
 ////////////////////////////////////////////////////////////////////////////////
+// Each record contains a header file, which package it originates from, and the
+// time it was last changed on
 struct record {
   char header[MAX_LENGTH_NAME];
   char package[MAX_LENGTH_NAME];
   int  lastmod;
 };
 
+// The cache is map of all CUT headers, and it should only be regenerated when a
+// header is newer than it
 struct cache {
   struct record *records;
   int            size;
@@ -48,35 +50,40 @@ const char    *CUT_HOME;
 ////////////////////////////////////////////////////////////////////////////////
 // FUNCTIONS
 ////////////////////////////////////////////////////////////////////////////////
+// Rebuilds the cache struct from the ".cache" file
 struct cache parse_cache()
 {
-  char          buffer[MAX_LENGTH_PATH];
-  FILE         *cfile;
   struct cache  cache;
+  char          path[MAX_LENGTH_PATH];
+  FILE         *cachefile;
 
-  sprintf(buffer, "%sCUT/%s", CUT_HOME, CACHE_PATH);
-  cfile = fopen(buffer, "r");
+  sprintf(path, "%sCUT/%s", CUT_HOME, CACHE_PATH);
+  cachefile = fopen(path, "r");
 
-  if (cfile) {
+  if (cachefile) {
+    // First pass: count the lines in the file to allocate memory, reset file
     cache.size = 0;
-    for (char c = fgetc(cfile); c != EOF; c = fgetc(cfile)) if (c == '\n') cache.size++;
-    fseek(cfile, 0, SEEK_SET);
-    cache.records = calloc(cache.size + 1, sizeof(struct record));
+    for (char c = fgetc(cachefile); c != EOF; c = fgetc(cachefile)) if (c == '\n') cache.size++;
+    cache.records = calloc(cache.size, sizeof(struct record));
+    fseek(cachefile, 0, SEEK_SET);
 
+    // Second pass: parse lines in the file according to format
     for (int i = 0; i < cache.size; i++) {
-      fscanf(cfile, "%s%s%d", 
+      fscanf(cachefile, "%s%s%d", 
             cache.records[i].header, 
             cache.records[i].package, 
             &cache.records[i].lastmod);
     }
 
-    fclose(cfile);
+    fclose(cachefile);
   }
 
   return cache;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Prints the dependencies until they reach outiside CUT
+// (!) This doesn't look for circular dependencies yet
 void check_includes(char list[][MAX_LENGTH_NAME], const char *filename)
 {
   FILE       *incf      = fopen(filename, "r");
@@ -119,8 +126,7 @@ void check_includes(char list[][MAX_LENGTH_NAME], const char *filename)
 
               sprintf(n, "%s%s/inc/%s", CUT_HOME, CACHE.records[i].package, file);
 
-              //printf("%s\n", n);
-              //if (!strcmp(file, "macro.h")) exit(1);
+              // When a file is included, check it too
               check_includes(list, n);
             }
           }
@@ -199,7 +205,7 @@ void cache(const char *path, const char *name)
 
       time = atoi(buffer);
 
-      fclose(result);
+      pclose(result);
     }
   }
   
@@ -207,7 +213,7 @@ void cache(const char *path, const char *name)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void list_dir(const char *path, void (*func)(const char*, const char*))
+void list_inc(const char *path, void (*func)(const char*, const char*))
 {
   DIR *dir  = opendir(path);
 
@@ -222,7 +228,7 @@ void list_dir(const char *path, void (*func)(const char*, const char*))
           char buffer[MAX_LENGTH_PATH];
 
           sprintf(buffer, "%s%s/", path, d->d_name);
-          list_dir(buffer, func);
+          list_inc(buffer, func);
           break;
         case DT_REG:
           {
@@ -247,14 +253,54 @@ void list_dir(const char *path, void (*func)(const char*, const char*))
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void list_src(const char *path, void (*func)(const char*, const char*))
+{
+  DIR *dir  = opendir(path);
+
+  if (dir) {
+    struct dirent *d;
+
+    while ((d = readdir(dir))) {
+      if (!strcmp(d->d_name, ".") || !strcmp(d->d_name, "..") || d->d_name[0] == '.') continue;
+      
+      switch (d->d_type) {
+        case DT_DIR:
+          char buffer[MAX_LENGTH_PATH];
+
+          sprintf(buffer, "%s%s/", path, d->d_name);
+          list_src(buffer, func);
+          break;
+        case DT_REG:
+          {
+            int len = strlen(d->d_name);
+
+            if (!strcmp(path + strlen(path) - 4, "src/") &&
+                ((len > 2 && !strcmp(d->d_name + len - 2, ".c")) ||
+                 (len > 4 && !strcmp(d->d_name + len - 4, ".cpp"))))
+            {
+              // This is a source file in a "src" folder
+              func(path, d->d_name);
+            }
+            break;
+          }
+        default:
+          break;
+      }
+    }
+
+    closedir(dir);
+  }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void print_section(char *section)
 {
   FILE *depends = fopen(DEPENDS_PATH, "r");
 
   if (depends) {
     for (char c = fgetc(depends); c != EOF; c = fgetc(depends)) {
-      for (int i = 0; c == section[i]; c = fgetc(depends), i++) {
-        if (section[i] == '.') {
+      for (int i = 0; c == section[i] || c == ':'; c = fgetc(depends), i++) {
+        if (!section[i] && c == ':') {
           // readline
           while (c != '\n' && c != EOF) c = fgetc(depends);
           while ((c = fgetc(depends)) == ' ') {
@@ -278,6 +324,19 @@ void print_section(char *section)
   }
 }
 
+// .c -> .h, .cpp -> .hpp
+void headerize(char *source)
+{
+  int replace = 0;
+
+  for (int i = 0; source[i]; i++) {
+    replace |= source[i] == '.';
+    if (replace && source[i] == 'c') {
+      source[i] = 'h';
+    }
+  }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])
 {
@@ -289,21 +348,27 @@ int main(int argc, char *argv[])
     exit(1);
   }
 
+  int headers = argc > 2 && !strcmp("headers", argv[2]);
+
   if (argc > 1) {
     if (!strcmp(argv[1], "--cache")) {
       // Build cache
-      list_dir(CUT_HOME, cache);
+      list_inc(CUT_HOME, cache);
     } else if (!strcmp(argv[1], "--depends")) {
       // Dependency walk
       CACHE    = parse_cache();
       PACKAGES = calloc(CACHE.size, sizeof(char*));
 
-      for (int i = 2; i < argc; i++) {
+      // TODO: Make paths relative to prevent personnal information upload in git repos
+      void (*list_dir)() = headers ? list_inc : list_src;
+
+      for (int i = 3; i < argc; i++) {
         //printf("%s\n", argv[i]);
         list_dir(argv[i], depends);
       }
 
       printf("packages:\n");
+
       for (int i = 0; PACKAGES[i]; i++) {
         printf("    %s\n", PACKAGES[i]);
         free(PACKAGES[i]);
@@ -312,7 +377,8 @@ int main(int argc, char *argv[])
       free(PACKAGES);
       free(CACHE.records);
     } else if (!strcmp(argv[1], "--include")) {
-      print_section(argv[2]);
+      if (headers) headerize(argv[3]);
+      print_section(argv[3]);
     } else if (!strcmp(argv[1], "--library")) {
       print_section("packages");
     }

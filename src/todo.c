@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <dir.h>
+#include <directory.h>
 #include <array.h>
 #include <terminal.h>
 #include <file.h>
