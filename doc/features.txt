@@ -1,0 +1,22 @@
+Brainstorm of desired cut fetures and usage
+
+cut --new path (default makes program)
+Initializes a new cut directory (takes current if none specified)
+--lib for library
+--roots=a,b,c (comma separated project roots)
+
+cut --build (builds path or current repo if no path)
+
+cut --dir (sets the working directory)
+
+cut --depends (rebuilds the dependency graph)
+
+cut --remove 
+
+cut -a"args" file...
+conventional
+
+cut --todo=path
+parses all todos in given path
+
+cut --test
