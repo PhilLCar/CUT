@@ -45,7 +45,7 @@ ifdef DEBUG
 endif
 
 # Find which source is associated with the object
-FINDSRC = $(foreach src,$(2),$(if $(findstring $(1),$(src)),$(src),))
+FINDSRC = $(foreach src,$(2),$(if $(findstring /$(1),$(src)),$(src),))
 ############################################################################################
 
 # Output directories might not exist if freshly pulled from git, or after clean

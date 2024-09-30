@@ -327,10 +327,17 @@ void print_section(char *section)
 // .c -> .h, .cpp -> .hpp
 void headerize(char *source)
 {
-  int replace = 0;
+  int replace  = 0;
+  int ext, len = strlen(source);
 
-  for (int i = 0; source[i]; i++) {
-    replace |= source[i] == '.';
+  for (ext = len - 1; ext >= 0; --ext) {
+    if (source[ext] == '.') {
+      replace = 1;
+      break;
+    }
+  }
+
+  for (int i = ext; source[i]; i++) {
     if (replace && source[i] == 'c') {
       source[i] = 'h';
     }
