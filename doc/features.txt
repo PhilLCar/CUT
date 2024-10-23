@@ -1,13 +1,13 @@
 Brainstorm of desired cut fetures and usage
 
-cut --new path (default makes program)
+cut --init[=path] (default makes program)
 Initializes a new cut directory (takes current if none specified)
 --lib for library
 --roots=a,b,c (comma separated project roots)
 
 cut --build (builds path or current repo if no path)
 
-cut --dir (sets the working directory)
+cut --dir (sets the working directory) ??
 
 cut --depends (rebuilds the dependency graph)
 
@@ -20,3 +20,27 @@ cut --todo=path
 parses all todos in given path
 
 cut --test
+runs the unit test program
+
+cut --version
+runs the versionning program
+
+// User story
+I want to create a new package:
+mkdir package
+cd package
+cut init --lib --roots=a,b,c // <= maybe we want the first command to not be an option, as per git
+# creates a main.c file and folders src and inc, or no main.c if library
+# creates the respective roots
+cut sync https://gitrepo
+# syncs the cut repository with a git repository
+cut build --sync="commit message"
+# builds the program or library and automatically versions as well as sync with git
+cut publish
+# publishes the library to the CUT library repository
+
+Each version must have a manifest containing what functions are available
+(before that a naming convention amongst all packages must be established)
+
+The dependency resolver should read all source files for #include directives and automatically
+deduce the version

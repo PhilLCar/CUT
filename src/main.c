@@ -83,7 +83,7 @@ void option_test(Args* args, ArgValue value)
 
 OPTIONS(
   { "dir",      ' ', "Sets the working directory, default to current directory", ARG_TYPE_CHARPTR, option_dir     },
-  { "new",      ' ', "Initializes a new CUT directory (program by default)",     ARG_TYPE_CHARPTR, option_new     },
+  { "init",     ' ', "Initializes a new CUT directory (program by default)",     ARG_TYPE_CHARPTR, option_new     },
   { "lib",      ' ', "Sets the CUT directory as a library",                      ARG_TYPE_BOOLEAN, option_lib     },
   { "roots",    ' ', "Comma separated list of project roots",                    ARG_TYPE_CHARPTR, option_roots   },
   { "build",    ' ', "Builds the CUT directory, defaults to current directory",  ARG_TYPE_CHARPTR, option_build   },
