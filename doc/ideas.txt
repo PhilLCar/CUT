@@ -1,0 +1,6 @@
+Exception support
+Need a solution for intuitive and safe threading
+  - TBD
+Need a solution for intuitive and safe pointers
+  - Use moveable pointers, with "take" and "give" operators
+Make all unit tests standardized

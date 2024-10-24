@@ -1,12 +1,10 @@
-#include <stdio.h>
-#include <string.h>
-
+// CUT
 #include <directory.h>
-#include <array.h>
 #include <terminal.h>
-#include <file.h>
-#include <stream.h>
+#include <filestream.h>
 #include <str.h>
+#include <string.charstream.h>
+#include <collection.str.h>
 
 #define WIDTH_FILE 40
 #define WIDTH_LINE  5
@@ -29,7 +27,7 @@ void printrep(char *file, char *line, char *prio, char *what, char *desc) {
 
   if (!strcmp(prio, "(low)")) {
     printf(TEXT_GREEN);
-  } else if (!strcmp(prio, "(medium)")) {
+  } else if (!strcmp(prio, "(normal)")) {
     printf(TEXT_YELLOW);
   } else if (!strcmp(prio, "(high)")) {
     printf(TEXT_RED);
@@ -43,70 +41,68 @@ void printrep(char *file, char *line, char *prio, char *what, char *desc) {
   printf(FONT_RESET);
 }
 
-int todo()
+int todo(int argc, char *argv[])
 {
-  String *todo  = newString("TODO:");
-  String *colon = newString(":");
-  Array  *items;
-  
-  if (argc < 2) {
+  if (strcmp(argv[0], ""))
+  {
     printrep("FILE", "LINE", "PRIORITY", "TYPE", "DESCRIPTION");
-    items = directory(".");
-  } else items = directory(argv[1]);
+  }
 
-  for (int i = 0; i < items->size; i++) {
-    DirectoryItem *di = at(items, i);
+  const char *dirname = argc > 1 ? argv[1] : ".";
 
-    if (di->type == DIRITEM_FILE) {
-      Stream *file = fromFileStream(fopen(di->name, "r"));
+  for (DirectoryIterator *di = dopen(dirname); di; dnext(&di))
+  {
+    char fullname[4096];
+    char extension[32];
+
+    sprintf(fullname, "%s%s", di->path, di->current.name);
+    fileext(extension, di->current.name);
+
+    if (di->current.type == DIRTYPE_FILE && (!strcmp(extension, ".c") || !strcmp(extension, ".h")))
+    {
+      CharStream *file = (CharStream*) NEW (FileStream) (fopen(fullname, "r"));
 
       if (file) {
         String *line;
 
-        for (int num = 0, index; (line = sgetline(file)); num++) {
-          if ((index = contains(line, todo)) > -1) {
-            String *desc = substring(newString(line->content), index + todo->length, 0);
-            String *what = NULL;
-            String *prio = NULL;
+        while ((line = CharStream_getline(file))) {
+          int num      = 0;
+          int icomment = String_cont(line, "//");
+          int index    = String_cont(line, "TODO:");
 
-            if ((index = contains(desc, colon))) {
-              prio = trim(substring(newString(desc->content), 0, index));
-              substring(desc, index + 1, 0);
+          if (icomment >= 0 && index > icomment) {
+            String *desc  = NEW (String) (String_trim(String_substr(line, index + 5, 0))->base);
+            Array  *split = (Array*)String_split(line, ":");
+            char    linenum[WIDTH_LINE + 1];
 
-              // Correctly formed prioriy
-              if (prio->content[0] == '(' && prio->content[prio->length - 1] == ')') {
-                if ((index = contains(desc, colon))) {
-                  what = trim(substring(newString(desc->content), 0, index));
-                  trim(substring(desc, index + 1, 0));
-                }
-              }
-            }
-            
-            if (prio && desc && what) {
-              char line[WIDTH_LINE + 1];
+            sprintf(linenum, "%d", num);
 
-              sprintf(line, "%d", num);
-              printrep(di->name, line, prio->content, what->content, desc->content);
+            if (split->size == 3) {
+              printrep(di->current.name, linenum, 
+                String_trim(Array_at(split, 0))->base, 
+                String_trim(Array_at(split, 1))->base,
+                String_trim(Array_at(split, 2))->base);
+            } else {
+              printrep(di->current.name, linenum, "(normal)", "Not categorized", desc->base);
             }
 
-            deleteString(&prio);
-            deleteString(&what);
-            deleteString(&desc);
+            DELETE (desc);
+            DELETE (split);
+          } else {
+            DELETE (line);
           }
-          deleteString(&line);
         }
-      }
 
-      sclose(file);
-    } else if (di->type == DIRITEM_DIRECTORY) {
-      char *nargv[2] = { "", di->name };
-      main(2, nargv);
+        DELETE (file);
+      }
+    }
+    else if (di->current.type == DIRTYPE_DIRECTORY && di->current.name[0] != '.')
+    {
+      char *nargv[2] = { "", fullname };
+
+      todo(2, nargv);
     }
   }
-  while (items->size) popobj(items, freedi);
-  deleteArray(&items);
-  deleteString(&todo);
-  deleteString(&colon);
 
   return 0;
 }

@@ -4,6 +4,10 @@
 // CUT
 #include <args.h>
 #include <directory.h>
+#include <filestream.h>
+
+// other
+#include "todo.c"
 
 #define MAX_ROOTS 8
 
@@ -92,33 +96,40 @@ OPTIONS(
   { "",         'a', "Adds the arguments to the underlying process (if any)",    ARG_TYPE_CHARPTR, option_args    },
   { "todo",     ' ', "Runs the \"todo\" subprocess on the specified directory",  ARG_TYPE_CHARPTR, option_todo    },
   { "test",     ' ', "Runs the \"test\" subprocess on the specified directory",  ARG_TYPE_CHARPTR, option_test    },
-  { "files",    '*', "The files to be compiled using CUT dependency resolution", ARG_TYPE_CHARPTR, NULL           }
+  { "command",  '+', "The cut command to execute",                               ARG_TYPE_CHARPTR, NULL           }
 );
 
 int main(int argc, char *argv[])
 {
-  Global env = {
-    .directory = ".",
-    .library   = 0,
-    .roots     = { NULL }
-  };
+  // Global env = {
+  //   .directory = ".",
+  //   .library   = 0,
+  //   .roots     = { NULL }
+  // };
 
-  Args *args = NEW (Args) (argc, argv, &env);
+  // Args *args = NEW (Args) (argc, argv, &env);
 
-  printf("Current folder: %s\n", env.directory);
-  printf("Library?: %s\n", env.library ? "true" : "false");
+  // TODO: (high): Refactor: Remove
+  CHECK_MEMORY
+  char *nargv[2] = { "test", "." };
+  todo(2, nargv);
+  STOP_WATCHING
+  // TODO: (low): Test: Remove this shiiit
 
-  for (int i = 0; env.roots[i] && i < MAX_ROOTS; i++)
-  {
-    printf("Item %d: %s\n", i, env.roots[i]);
-  }
+  // printf("Current folder: %s\n", env.directory);
+  // printf("Library?: %s\n", env.library ? "true" : "false");
 
-  for (DirectoryIterator *di = dopen(env.directory); di; dnext(&di))
-  {
-    printf("%s\n", di->current.name);
-  }
+  // for (int i = 0; env.roots[i] && i < MAX_ROOTS; i++)
+  // {
+  //   printf("Item %d: %s\n", i, env.roots[i]);
+  // }
+
+  // for (DirectoryIterator *di = dopen(env.directory); di; dnext(&di))
+  // {
+  //   printf("%s\n", di->current.name);
+  // }
 
 
-  DELETE (args);
+  // DELETE (args);
   return 0;
 }
