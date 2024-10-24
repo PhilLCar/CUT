@@ -110,10 +110,8 @@ int main(int argc, char *argv[])
   // Args *args = NEW (Args) (argc, argv, &env);
 
   // TODO: (high): Refactor: Remove
-  CHECK_MEMORY
   char *nargv[2] = { "test", "." };
   todo(2, nargv);
-  STOP_WATCHING
   // TODO: (low): Test: Remove this shiiit
 
   // printf("Current folder: %s\n", env.directory);

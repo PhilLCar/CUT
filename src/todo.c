@@ -41,13 +41,9 @@ void printrep(char *file, char *line, char *prio, char *what, char *desc) {
   printf(FONT_RESET);
 }
 
+int header = 0;
 int todo(int argc, char *argv[])
 {
-  if (strcmp(argv[0], ""))
-  {
-    printrep("FILE", "LINE", "PRIORITY", "TYPE", "DESCRIPTION");
-  }
-
   const char *dirname = argc > 1 ? argv[1] : ".";
 
   for (DirectoryIterator *di = dopen(dirname); di; dnext(&di))
@@ -77,6 +73,12 @@ int todo(int argc, char *argv[])
 
             sprintf(linenum, "%d", num);
 
+            if (!header)
+            {
+              printrep("FILE", "LINE", "PRIORITY", "TYPE", "DESCRIPTION");
+              header = 1;
+            }
+
             if (split->size == 3) {
               printrep(di->current.name, linenum, 
                 String_trim(Array_at(split, 0))->base, 
@@ -102,6 +104,11 @@ int todo(int argc, char *argv[])
 
       todo(2, nargv);
     }
+  }
+
+  if (!header && strcmp(argv[0], ""))
+  {
+    printf("Nothing to do...\n");
   }
 
   return 0;
