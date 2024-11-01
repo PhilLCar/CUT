@@ -61,14 +61,14 @@ int todo(int argc, char *argv[])
       if (file) {
         String *line;
 
-        while ((line = CharStream_getline(file))) {
+        while ((line = CharStream_GetLine(file))) {
           int num      = 0;
-          int icomment = String_cont(line, "//");
-          int index    = String_cont(line, "TODO:");
+          int icomment = String_Cnt(line, "//");
+          int index    = String_Cnt(line, "TODO:");
 
           if (icomment >= 0 && index > icomment) {
-            String *desc  = NEW (String) (String_trim(String_substr(line, index + 5, 0))->base);
-            Array  *split = (Array*)String_split(line, ":");
+            String *desc  = NEW (String) (String_Trim(String_SubString(line, index + 5, 0))->base);
+            Array  *split = (Array*)String_Split(line, ":");
             char    linenum[WIDTH_LINE + 1];
 
             sprintf(linenum, "%d", num);
@@ -81,9 +81,9 @@ int todo(int argc, char *argv[])
 
             if (split->size == 3) {
               printrep(di->current.name, linenum, 
-                String_trim(Array_at(split, 0))->base, 
-                String_trim(Array_at(split, 1))->base,
-                String_trim(Array_at(split, 2))->base);
+                String_Trim(Array_At(split, 0))->base, 
+                String_Trim(Array_At(split, 1))->base,
+                String_Trim(Array_At(split, 2))->base);
             } else {
               printrep(di->current.name, linenum, "(normal)", "Not categorized", desc->base);
             }

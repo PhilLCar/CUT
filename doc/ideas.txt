@@ -4,3 +4,9 @@ Need a solution for intuitive and safe threading
 Need a solution for intuitive and safe pointers
   - Use moveable pointers, with "take" and "give" operators
 Make all unit tests standardized
+  - There should be essentially 4 issues
+    - Good output
+    - Good output (but memory leak)
+    - Wrong output (with or without memory leak)
+    - Crash
+  We can read popen for the output/memory leak and segfault

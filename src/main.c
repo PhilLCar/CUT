@@ -20,7 +20,7 @@ typedef struct _global {
 
 void option_dir(Args* args, ArgValue value)
 {
-  Global *env = args->env;
+  Global *env = args->base;
   env->directory = value.as_charptr ? value.as_charptr : ".";
 }
 
@@ -31,13 +31,13 @@ void option_new(Args* args, ArgValue value)
 
 void option_lib(Args* args, ArgValue value)
 {
-  Global *env  = args->env;
+  Global *env  = args->base;
   env->library = value.as_integer;
 }
 
 void option_roots(Args* args, ArgValue value)
 {
-  Global *env = args->env;
+  Global *env = args->base;
   
   int   list_size = 0;
   char *list      = (char*)value.as_charptr;
@@ -71,7 +71,7 @@ void option_remove(Args* args, ArgValue value)
 
 void option_args(Args* args, ArgValue value)
 {
-  Global *env = args->env;
+  Global *env = args->base;
   env->args = value.as_charptr;
 }
 
