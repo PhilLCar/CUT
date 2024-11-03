@@ -42,7 +42,7 @@ void printrep(char *file, char *line, char *prio, char *what, char *desc) {
 }
 
 int header = 0;
-int todo(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
   const char *dirname = argc > 1 ? argv[1] : ".";
 
@@ -102,7 +102,7 @@ int todo(int argc, char *argv[])
     {
       char *nargv[2] = { "", fullname };
 
-      todo(2, nargv);
+      main(2, nargv);
     }
   }
 

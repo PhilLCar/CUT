@@ -22,6 +22,14 @@ bin/$(NAME): obj/main.o | bin
 
 	$(CMP) -g obj/main.o $(CFLAGS) $(LIBRARIES) $(INCLUDES) $(INC) $(LINK) $(FILE) $(FILE) -o bin/$(NAME) 
 
+bin/%: obj/%.o | bin
+	$(eval LIBS:= $(patsubst %, %/lib, $(shell $(BOOTSTRAP) --library)))
+	$(eval LINK:= $(patsubst %, -L%, $(LIBS)))
+	$(eval INC:=  $(patsubst %, -I%/inc, $(shell $(BOOTSTRAP) --library)))
+	$(eval FILE:= $(filter-out -l:, $(foreach path, $(LIBS), -l:$(notdir $(wildcard $(path)/*)))))
+
+	$(CMP) -g $< $(CFLAGS) $(LIBRARIES) $(INCLUDES) $(INC) $(LINK) $(FILE) $(FILE) -o $@
+
 bin/$(NAME).test: bin
 	$(eval LIBS:= $(patsubst %, %/lib, $(shell $(BOOTSTRAP) --library)))
 	$(eval LINK:= $(patsubst %, -L%, $(LIBS)))
