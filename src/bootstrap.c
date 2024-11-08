@@ -209,7 +209,7 @@ void cache(const char *path, const char *name)
     }
   }
   
-  printf("%-32s%-32s%-16d\n", name, package, time);
+  printf("%-32s %-31s %-15d\n", name, package, time);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -97,9 +97,6 @@ OPTIONS(
   { "build",     ' ', "Builds the CUT directory, defaults to current directory",  ARG_TYPE_CHARPTR, option_build   },
   { "depends",   ' ', "Rebuilds the dependency graph",                            ARG_TYPE_CHARPTR, option_depends },
   { "remove",    ' ', "Removes CUT tracking for this directory",                  ARG_TYPE_CHARPTR, option_remove  },
-  { "",          'a', "Adds the arguments to the underlying process (if any)",    ARG_TYPE_CHARPTR, option_args    },
-  { "todo",      ' ', "Runs the \"todo\" subprocess on the specified directory",  ARG_TYPE_CHARPTR, option_todo    },
-  { "test",      ' ', "Runs the \"test\" subprocess on the specified directory",  ARG_TYPE_CHARPTR, option_test    },
   { "command",   '+', "The cut command to execute",                               ARG_TYPE_CHARPTR, param_command  },
   { "arguments", '*', "The arguments passed to the cut command",                  ARG_TYPE_CHARPTR, NULL           }
 );
@@ -120,9 +117,8 @@ int main(int argc, char *argv[])
 
   ObjectArray_Fill(knownCommands,
     NEW (String) ("todo"),
-    NEW (String) ("build"),
-    NEW (String) ("init"),
-    NEW (String) ("test"),
+    NEW (String) ("cache"),
+    NEW (String) ("depends"),
     NULL);
 
   if (ObjectArray_In(knownCommands, command, (Comparer)String_Cmp))

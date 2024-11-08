@@ -52,7 +52,7 @@ int main(int argc, char *argv[])
     char extension[32];
 
     sprintf(fullname, "%s%s", di->path, di->current.name);
-    fileext(extension, di->current.name);
+    fileext(di->current.name, extension, sizeof(extension));
 
     if (di->current.type == DIRTYPE_FILE && (!strcmp(extension, ".c") || !strcmp(extension, ".h")))
     {
