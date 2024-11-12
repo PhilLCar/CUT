@@ -13,7 +13,7 @@
 OBJECT (const char *filename, FileAccessModes mode) INHERIT(Map)
   const char      *filename;
   FileAccessModes  mode;
-END_OBJECT("", 1);
+END_OBJECT("", FILEACCESS_READ);
 
 #undef TYPENAME
 #endif

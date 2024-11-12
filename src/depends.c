@@ -8,52 +8,6 @@
 #include <string.h>
 #include <list.h>
 
-#define TYPENAME CacheRecord
-
-OBJECT (String *line) NOBASE
-  String *file;
-  String *package;
-  long    lastmod;
-END_OBJECT(NULL);
-
-CacheRecord *_(Construct)(String *line)
-{
-  if (this) {
-    ObjectArray *record = String_Split(line, " ");
-    String      *lastmod;
-
-    for (int i = 0; i < record->base.size; i++) {
-      if (String_Eq(Array_At((Array*)record, i), "")) {
-        ObjectArray_RemoveAt(record, i--, 0);
-      }
-    }
-
-    if (record->base.size != 3) {
-      THROW(NEW (Exception)("Bad format!"));
-    }
-
-    this->file    = ObjectArray_Remove(record, 1);
-    this->package = ObjectArray_Remove(record, 1);
-    lastmod       = ObjectArray_Remove(record, 1);
-    this->lastmod = atol(lastmod->base);
-
-    DELETE (lastmod);
-    DELETE (record);
-  }
-
-  return this;
-}
-
-void _(Destruct)()
-{
-  if (this) {
-    DELETE (this->file);
-    DELETE (this->package);
-  }
-}
-
-#undef TYPENAME
-
 long statfile(const char *filename)
 {
   char  buffer[2048];
@@ -75,24 +29,6 @@ long statfile(const char *filename)
 int record_comparer(CacheRecord *record, String *filename)
 {
   return String_Compare(record->file, filename);
-}
-
-ObjectArray *load_cache(const char *filename)
-{
-  CharStream  *stream = (CharStream*)NEW (FileStream)(fopen(filename, "r"));
-  ObjectArray *cache  = NEW (ObjectArray)(OBJECT_TYPE(CacheRecord));
-
-  while (!stream->base.eos) {
-    String *line = CharStream_GetLine(stream);
-
-    if (line && line != "") {
-      ObjectArray_Push(cache, NEW (CacheRecord)(line));
-    }
-  }
-
-  DELETE (stream);
-
-  return cache;
 }
 
 void get_includes(ObjectArray *cache, List *travelled, const char *filename)

@@ -6,15 +6,17 @@
 MapFile *_(Construct)(const char *filename, FileAccessModes mode)
 {  
   if (Map_Construct(BASE(0), OBJECT_TYPE(String), OBJECT_TYPE(ObjectArray), (Comparer)String_Cmp)) {
-    CharStream *stream = (CharStream*) NEW (FileStream) (fopen(filename, "r"));
-
-    if (stream) {
+    if (filename) {
       this->filename = malloc(strlen(filename) + 1);
-      this->mode = mode;
+      this->mode     = mode;
 
       strcpy((void*)this->filename, filename);
-      
-      if (mode & FILEACCESS_READ) {
+    }
+    
+    if (mode & FILEACCESS_READ) {
+      CharStream *stream = (CharStream*) NEW (FileStream) (fopen(filename, "r"));
+
+      if (stream) {
         String      *line    = NULL;
         ObjectArray *current = NULL;
 
@@ -22,19 +24,19 @@ MapFile *_(Construct)(const char *filename, FileAccessModes mode)
           if (!line->length) {
             DELETE (line)
           } else if (line->base[0] == ' ') {
-            ObjectArray_Push(current, line);
+            ObjectArray_Push(current, String_Trim(line));
           } else {
             // Remove the ':'
             String_SubString(line, 0, -1);
 
-            current = Map_Set(BASE(0), line, NEW (ObjectArray)(OBJECT_TYPE(String)));
+            current = Map_Set(BASE(0), line->base, NEW (ObjectArray)(OBJECT_TYPE(String)));
           }
         }
-      }
 
-      DELETE (stream);
-    } else {
-      THROW(NEW (Exception)("File not found!"));
+        DELETE (stream);
+      } else {
+        THROW(NEW (Exception)("File not found!"));
+      }
     }
   }
 

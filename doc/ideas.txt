@@ -1,8 +1,12 @@
 Exception support
 Need a solution for intuitive and safe threading
+  - "Sync" keyword to autolock code section
+  - "Sync" should have a mechanic for sequence, eg sync1 sync2 etc..
   - TBD
 Need a solution for intuitive and safe pointers
   - Use moveable pointers, with "take" and "give" operators
+  - Same should be used for thread pointers
+  - Same should be used for stream pointers
 Make all unit tests standardized
   - There should be essentially 4 issues
     - Good output
