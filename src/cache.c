@@ -1,11 +1,30 @@
 #include <directory.h>
 #include <exception.h>
 #include <diagnostic.h>
+#include <cachefile.h>
 
 const char *root;
 int         rootlen;
 
-void build_cache(FILE *stream, const char *utilities)
+long statfile(const char *filename)
+{
+  char  buffer[2048];
+  FILE *result;
+
+  sprintf(buffer, "stat -c %%Y %s", filename);
+
+  result = popen(buffer, "r");
+
+  memset(buffer, 0, sizeof(buffer));
+
+  for (int c = fgetc(result), i = 0; c != EOF; c = fgetc(result), i++) buffer[i] = c;
+
+  pclose(result);
+
+  return atol(buffer);
+}
+
+void build_cache(CacheFile *file, const char *utilities)
 {
   for (DirectoryIterator *di = dopen(utilities); di; dnext(&di)) {
     if (di->current.type == DIRTYPE_DIRECTORY) {
@@ -13,7 +32,7 @@ void build_cache(FILE *stream, const char *utilities)
         char directory[2048];
 
         dfullname(di, directory, sizeof(directory));
-        build_cache(stream, directory);
+        build_cache(file, directory);
       }
     } else {
       char ext[8];
@@ -34,7 +53,7 @@ void build_cache(FILE *stream, const char *utilities)
           }
         }
 
-        fprintf(stream, "%-32s %-31s %-15ld\n", di->current.name, package, statfile(filename));
+        ObjectArray_Push(&file->base, CacheRecord_FromValues(di->current.name, package, statfile(filename)));
       }
     }
   }
@@ -54,9 +73,9 @@ int main(int argc, char *argv[])
     sprintf(cachefile, "%s%s", root, "CUT/.cut/.cache");
   }
 
-  FILE *cache = fopen(cachefile, "w+");
+  CacheFile *cache = NEW (CacheFile)(cachefile, FILEACCESS_WRITE);
 
   build_cache(cache, root);
 
-  fclose(cache);
+  DELETE (cache);
 }

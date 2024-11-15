@@ -7,24 +7,7 @@
 #include <collection.str.h>
 #include <string.h>
 #include <list.h>
-
-long statfile(const char *filename)
-{
-  char  buffer[2048];
-  FILE *result;
-
-  sprintf(buffer, "stat -c %%Y %s", filename);
-
-  result = popen(buffer, "r");
-
-  memset(buffer, 0, sizeof(buffer));
-
-  for (int c = fgetc(result), i = 0; c != EOF; c = fgetc(result), i++) buffer[i] = c;
-
-  pclose(result);
-
-  return atol(buffer);
-}
+#include <cacherecord.h>
 
 int record_comparer(CacheRecord *record, String *filename)
 {
@@ -44,20 +27,20 @@ void get_includes(ObjectArray *cache, List *travelled, const char *filename)
         String_Trim(line);
 
         if (String_StartsWith(line, "<")) {
-          int end = line->length - String_Cnt(stream, ">");
+          int end = line->length - String_Cnt(line, ">");
 
           String_SubString(line, 1, -end);
 
           CacheRecord *record = ObjectArray_In(cache, line, (Comparer)record_comparer);
 
           if (record) {
-            String *filename = find(record);
+            String *filename = NULL;//find(record);
 
             if (!List_In(travelled, filename, (Comparer)String_Compare))
             {
               List *step = List_Push(travelled, filename);
 
-              get_includes(step, cache, filename->base);
+              get_includes(cache, step, filename->base);
 
               List_Pop(step, NULL);
             }
@@ -76,23 +59,23 @@ void get_includes(ObjectArray *cache, List *travelled, const char *filename)
 
 int main(int argc, char *argv[])
 {
-  char cachefile[2048];
+  // char cachefile[2048];
 
-  root = getenv("CUT_HOME");
+  // root = getenv("CUT_HOME");
 
-  if (!root[0]) {
-    THROW(NEW (Exception)("No CUT_HOME environment variable defined... exiting!"));
-  } else {
-    rootlen = strlen(root);
+  // if (!root[0]) {
+  //   THROW(NEW (Exception)("No CUT_HOME environment variable defined... exiting!"));
+  // } else {
+  //   rootlen = strlen(root);
 
-    sprintf(cachefile, "%s%s", root, "CUT/.cut/.cache");
-  }
+  //   sprintf(cachefile, "%s%s", root, "CUT/.cut/.cache");
+  // }
 
-  FILE *cache = fopen(cachefile, "w+");
+  // FILE *cache = fopen(cachefile, "w+");
 
-  build_cache(cache, root);
+  // build_cache(cache, root);
 
-  fclose(cache);
+  // fclose(cache);
 
   // depends
 }

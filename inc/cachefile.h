@@ -5,6 +5,7 @@
 #include <diagnostic.h>
 #include <cacherecord.h>
 #include <filestream.h>
+#include <string.charstream.h>
 
 #define TYPENAME CacheFile
 

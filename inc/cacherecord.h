@@ -6,6 +6,7 @@
 #include <oop.h>
 #include <str.h>
 #include <map.h>
+#include <collection.str.h>
 
 #define TYPENAME CacheRecord
 

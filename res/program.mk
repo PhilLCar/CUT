@@ -13,8 +13,16 @@ INCLUDE_FROM   = sources
 #include common commands
 include $(CUT_HOME)CUT/res/common.mk
 
+lib:
+	mkdir lib
 
-bin/$(NAME): obj/main.o | bin
+lib/lib$(NAME).a: $(OBJECTS) | lib
+	ar crs $@ $?
+
+# Global rules
+library: lib/lib$(NAME).a
+
+bin/$(NAME): obj/main.o | lib/lib$(NAME).a  bin
 	$(eval LIBS:= $(patsubst %, %/lib, $(shell $(BOOTSTRAP) --library)))
 	$(eval LINK:= $(patsubst %, -L%, $(LIBS)))
 	$(eval INC:=  $(patsubst %, -I%/inc, $(shell $(BOOTSTRAP) --library)))
@@ -22,7 +30,7 @@ bin/$(NAME): obj/main.o | bin
 
 	$(CMP) -g obj/main.o $(CFLAGS) $(LIBRARIES) $(INCLUDES) $(INC) $(LINK) $(FILE) $(FILE) -o bin/$(NAME) 
 
-bin/%: obj/%.o | bin
+bin/%: obj/%.o | lib/lib$(NAME).a  bin
 	$(eval LIBS:= $(patsubst %, %/lib, $(shell $(BOOTSTRAP) --library)))
 	$(eval LINK:= $(patsubst %, -L%, $(LIBS)))
 	$(eval INC:=  $(patsubst %, -I%/inc, $(shell $(BOOTSTRAP) --library)))
@@ -30,7 +38,7 @@ bin/%: obj/%.o | bin
 
 	$(CMP) -g $< $(CFLAGS) $(LIBRARIES) $(INCLUDES) $(INC) $(LINK) $(FILE) $(FILE) -o $@
 
-bin/$(NAME).test: bin
+bin/$(NAME).test: lib/lib$(NAME).a | bin
 	$(eval LIBS:= $(patsubst %, %/lib, $(shell $(BOOTSTRAP) --library)))
 	$(eval LINK:= $(patsubst %, -L%, $(LIBS)))
 	$(eval INC:=  $(patsubst %, -I%/inc, $(shell $(BOOTSTRAP) --library)))

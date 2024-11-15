@@ -19,7 +19,7 @@ CacheFile *_(Construct)(const char *filename, FileAccessModes mode)
         while (!stream->base.eos) {
           String *line = CharStream_GetLine(stream);
 
-          if (line && line != "") {
+          if (line && line->length) {
             ObjectArray_Push(BASE(0), NEW (CacheRecord)(line));
           }
         }
@@ -45,7 +45,7 @@ void _(Destruct)()
           CacheRecord *record = Array_At(BASE(1), i);
           String      *line   = CacheRecord_ToString(record);
 
-          CharStream_PutString(stream, line);
+          CharStream_PutString(stream, line->base);
 
           DELETE (line);
         }

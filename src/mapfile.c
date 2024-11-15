@@ -29,7 +29,7 @@ MapFile *_(Construct)(const char *filename, FileAccessModes mode)
             // Remove the ':'
             String_SubString(line, 0, -1);
 
-            current = Map_Set(BASE(0), line->base, NEW (ObjectArray)(OBJECT_TYPE(String)));
+            current = Map_Set(BASE(0), line->base, NEW (ObjectArray)(OBJECT_TYPE(String)))->second.object;
           }
         }
 
@@ -56,7 +56,7 @@ void _(Destruct)()
           String *name = pair->first.object;
           Array  *list = pair->second.object;
 
-          CharStream_PutString(stream, ((String*)pair->first.object)->base);
+          CharStream_PutString(stream, name->base);
           CharStream_PutLine(stream, ":");
 
           for (int j = 0; j < list->size; j++) {
