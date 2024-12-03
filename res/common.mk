@@ -30,7 +30,7 @@ endif
 
 # CUT Bootstrap
 BOOTSTRAP = $(CUT_HOME)CUT/bin/bootstrap
-DEPENDS   = depends.list
+DEPENDS   = depends.map
 
 # Compilation parameters
 DIRECTORIES = $(PROJECT_ROOTS) .
@@ -65,7 +65,7 @@ bin:
 
 .SECONDEXPANSION:
 obj/%.o: $$(call FINDSRC,$$(*F),$$(SOURCES)) | obj .cut/$(DEPENDS) 
-	$(CMP) $(CFLAGS) $(LIBRARIES) $(INCLUDES) $(shell $(BOOTSTRAP) --include $(INCLUDE_FROM) $(notdir $<)) -c $< -o $@
+	$(CMP) $(CFLAGS) $(LIBRARIES) $(INCLUDES) $(patsubst %, -I%, $(shell $(BOOTSTRAP) --include $(INCLUDE_FROM) $(notdir $<))) -c $< -o $@
 
 depends:
 	rm -rf .cut

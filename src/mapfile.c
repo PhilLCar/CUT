@@ -1,11 +1,12 @@
 #include <mapfile.h>
+#include <set.h>
 
 #define TYPENAME MapFile
 
 ////////////////////////////////////////////////////////////////////////////////
 MapFile *_(Construct)(const char *filename, FileAccessModes mode)
 {  
-  if (Map_Construct(BASE(0), OBJECT_TYPE(String), OBJECT_TYPE(ObjectArray), (Comparer)String_Cmp)) {
+  if (Map_Construct(BASE(0), TYPEOF (String), TYPEOF (Set), (Comparer)String_Cmp)) {
     if (filename) {
       this->filename = malloc(strlen(filename) + 1);
       this->mode     = mode;
@@ -17,19 +18,19 @@ MapFile *_(Construct)(const char *filename, FileAccessModes mode)
       CharStream *stream = (CharStream*) NEW (FileStream) (fopen(filename, "r"));
 
       if (stream) {
-        String      *line    = NULL;
-        ObjectArray *current = NULL;
+        String *line    = NULL;
+        Set    *current = NULL;
 
         while ((line = CharStream_GetLine(stream))) {
           if (!line->length) {
             DELETE (line)
           } else if (line->base[0] == ' ') {
-            ObjectArray_Push(current, String_Trim(line));
+            Set_Add(current, String_Trim(line));
           } else {
             // Remove the ':'
             String_SubString(line, 0, -1);
 
-            current = Map_Set(BASE(0), line->base, NEW (ObjectArray)(OBJECT_TYPE(String)))->second.object;
+            current = Map_Set(BASE(0), line->base, NEW (ObjectArray)(TYPEOF (String)))->second.object;
           }
         }
 

@@ -112,7 +112,7 @@ int main(int argc, char *argv[])
   CHECK_MEMORY
 
   Args        *args          = NEW (Args) (argc, argv, &env);
-  ObjectArray *knownCommands = NEW (ObjectArray)(OBJECT_TYPE(String));
+  ObjectArray *knownCommands = NEW (ObjectArray)(TYPEOF (String));
   const char  *command       = Args_Name(args, "command").as_charptr;
 
   ObjectArray_Fill(knownCommands,

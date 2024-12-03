@@ -4,7 +4,7 @@
 
 CacheFile *_(Construct)(const char *filename, FileAccessModes mode)
 {
-  if (ObjectArray_Construct(BASE(0), OBJECT_TYPE(CacheRecord))) {
+  if (ObjectArray_Construct(BASE(0), TYPEOF (CacheRecord))) {
     if (filename) {
       this->filename = malloc(strlen(filename) + 1);
       this->mode     = mode;

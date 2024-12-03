@@ -1,3 +1,4 @@
+#include <diagnostic.h>
 #include <directory.h>
 #include <exception.h>
 #include <diagnostic.h>
@@ -61,11 +62,13 @@ void build_cache(CacheFile *file, const char *utilities)
 
 int main(int argc, char *argv[])
 {
+  CHECK_MEMORY
+
   char cachefile[2048];
 
   root = getenv("CUT_HOME");
 
-  if (!root[0]) {
+  if (!root || !root[0]) {
     THROW(NEW (Exception)("No CUT_HOME environment variable defined... exiting!"));
   } else {
     rootlen = strlen(root);
@@ -78,4 +81,7 @@ int main(int argc, char *argv[])
   build_cache(cache, root);
 
   DELETE (cache);
+
+  CHECK_MEMORY
+  STOP_WATCHING
 }

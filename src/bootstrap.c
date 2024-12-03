@@ -14,7 +14,7 @@
 #define MAX_LENGTH_NAME 128
 #define MAX_LENGTH_PATH 1024
 #define CACHE_PATH   ".cut/.cache"
-#define DEPENDS_PATH ".cut/depends.list"
+#define DEPENDS_PATH ".cut/depends.map"
 
 /* CUT BOOTSTRAP:
  * This is the bootstrap for CUT, it runs without CUT dependencies
@@ -119,7 +119,7 @@ void check_includes(char list[][MAX_LENGTH_NAME], const char *filename)
                 if (!strcmp(n, list[i])) break;
                 if (!list[i][0]) {
                   sprintf(list[i], "%s", n);
-                  printf("    -I%s\n", list[i]);
+                  printf("    %s\n", list[i]);
                   break;
                 }
               }
