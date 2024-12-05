@@ -14,7 +14,10 @@
 #include <mapfile.h>
 #include <string.file.h>
 
-const char *home;
+// Those would be closures, but since C they are globals (not thread safe)
+const char   *home;
+const List   *travel;
+const String *package;
 
 int sources = 0;
 
@@ -28,8 +31,46 @@ OPTIONS(
   { "working-directory", '+', "Specifies the working directory",                  ARG_TYPE_CHARPTR, NULL           }
 );
 
+int travel_comparer(const String *element, const String *against, Comparer comparer)
+{
+  int result = 1;
 
-int record_comparer(CacheRecord *record, String *filename)
+  // TODO: Kindof work but needs the regular unique check as well!!
+  if (String_Equals(element, against)) {
+    result = 0;
+  } else if (List_In(travel, element, comparer)) {
+    result = -1;
+  }
+
+  return result;
+}
+
+int travel_pac_comparer(const String *element, const String *against)
+{
+  return String_Contains(element, against);
+}
+
+int travel_inc_comparer(const String *element, const String *against)
+{
+  String* path   = Path_Folder(element->base);
+  int     result = String_Compare(path, against);
+
+  DELETE (path);
+
+  return result;
+}
+
+int package_comparer(const String *element, const String *against)
+{
+  return travel_comparer(element, against, (Comparer)travel_pac_comparer);
+}
+
+int include_comparer(const String *element, const String *against)
+{
+  return travel_comparer(element, against, (Comparer)travel_inc_comparer);
+}
+
+int record_comparer(const CacheRecord *record, const String *filename)
 {
   return String_Compare(record->file, filename);
 }
@@ -88,6 +129,8 @@ void get_includes(CacheFile *cache, Set *packages, Set *includes, List *travelle
 
               get_includes(cache, packages, includes, step, filename->base);
 
+              travel = step;
+
               Set_Add(packages, packagename);
               Set_Add(includes, Path_Folder(filename->base));
 
@@ -130,7 +173,7 @@ void get_files(MapFile *depends, CacheFile *cache, Set *packages, const char *fo
 
         Set *includes = Map_Set((Map*)depends,
                           NEW (String) (di->current.name),
-                          NEW (Set) (TYPEOF (String), (Comparer)String_Compare)
+                          NEW (Set) (TYPEOF (String), (Comparer)include_comparer)
                         )->second.object;
         
         get_includes(cache, packages, includes, travelled, filename);
@@ -162,7 +205,7 @@ int main(int argc, char *argv[])
   MapFile   *depends  = NEW (MapFile)(dependsfile->base, FILEACCESS_WRITE);
   Set       *packages = Map_Set((Map*)depends,
                           NEW (String) ("packages"),
-                          NEW (Set) (TYPEOF (String), (Comparer)String_Compare)
+                          NEW (Set) (TYPEOF (String), (Comparer)package_comparer)
                         )->second.object;
 
   get_files(depends, cache, packages, workdir);
