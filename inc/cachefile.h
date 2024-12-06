@@ -14,6 +14,7 @@ OBJECT (const char *filename, FileAccessModes mode) INHERIT (ObjectArray)
   FileAccessModes  mode;
 END_OBJECT(".cache", FILEACCESS_READ);
 
+long statfile(const char *filename);
 
 #undef TYPENAME
 

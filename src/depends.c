@@ -16,15 +16,22 @@
 const char *home;
 
 int sources = 0;
+int update  = 0;
 
 void option_sources(Args *args, ArgValue value)
 {
   sources = value.as_integer;
 }
 
+void option_update(Args *args, ArgValue value)
+{
+  update = value.as_integer;
+}
+
 OPTIONS(
-  { "sources",           's', "Finds dependencies in sources instead of headers", ARG_TYPE_BOOLEAN, option_sources },
-  { "working-directory", '+', "Specifies the working directory",                  ARG_TYPE_CHARPTR, NULL           }
+  { "sources",           's', "Finds dependencies in sources instead of headers",    ARG_TYPE_BOOLEAN, option_sources },
+  { "update",            'u', "Only rebuild the outdated parts of the depends file", ARG_TYPE_BOOLEAN, option_update  },
+  { "working-directory", '+', "Specifies the working directory",                     ARG_TYPE_CHARPTR, NULL           }
 );
 
 void add_dependecy(const List *travelled, Comparer orderer, ObjectArray *dependencies, String *value)
@@ -126,21 +133,27 @@ void get_includes(CacheFile *cache, ObjectArray *packages, ObjectArray *includes
             String *packagename = find(home,              record->package->base);
             String *filename    = find(packagename->base, record->file->base);
 
-            if (filename && !List_In(travelled, filename, (Comparer)String_Compare)) {
-              List   *step        = List_Push(travelled, filename, 0);
-              String *includename = Path_Folder(filename->base);
+            if (filename && packagename) {
+              long modified = statfile(filename->base);
 
-              add_dependecy(travelled, (Comparer)package_orderer, packages, packagename);
-              add_dependecy(travelled, (Comparer)include_orderer, includes, includename);
+              if ((!update || modified > record->lastmod) && !List_In(travelled, filename, (Comparer)String_Compare)) {
+                List   *step        = List_Push(travelled, filename, 0);
+                String *includename = Path_Folder(filename->base);
 
-              get_includes(cache, packages, includes, step, filename->base);
+                add_dependecy(travelled, (Comparer)package_orderer, packages, packagename);
+                add_dependecy(travelled, (Comparer)include_orderer, includes, includename);
 
-              List_Pop(step, NULL);
+                get_includes(cache, packages, includes, step, filename->base);
+
+                List_Pop(step, NULL);
+              } else {
+                DELETE (packagename);
+              }
+              
+              DELETE (filename);
             } else {
-              DELETE (packagename);
+              THROW (NEW (Exception) ("File or package wasn't found"));
             }
-            
-            DELETE (filename);
           }
         }
       }
@@ -169,15 +182,18 @@ void get_files(MapFile *depends, CacheFile *cache, ObjectArray *packages, const 
 
       if ((sources && (!strcmp(ext, ".c") || !strcmp(ext, ".cpp")))
       || (!sources && (!strcmp(ext, ".h") || !strcmp(ext, ".hpp")))) {
-        List *travelled = NEW (List)();
-        char  filename[2048];
+        List        *travelled = NEW (List)();
+        ObjectArray *includes  = Map_ValueAt((Map*)depends, di->current.name);
+        char         filename[2048];
 
         dfullname(di, filename, sizeof(filename));
 
-        ObjectArray *includes = Map_Set((Map*)depends,
-                                  NEW (String) (di->current.name),
-                                  NEW (ObjectArray) (TYPEOF (String))
-                                )->second.object;
+        includes = includes 
+          ? includes 
+          : Map_Set((Map*)depends,
+              NEW (String) (di->current.name),
+              NEW (ObjectArray) (TYPEOF (String))
+            )->second.object;
         
         get_includes(cache, packages, includes, travelled, filename);
 
@@ -205,11 +221,15 @@ int main(int argc, char *argv[])
   }
 
   CacheFile   *cache    = NEW (CacheFile)(cachefile->base, FILEACCESS_READ);
-  MapFile     *depends  = NEW (MapFile)(dependsfile->base, FILEACCESS_WRITE);
-  ObjectArray *packages = Map_Set((Map*)depends,
-                            NEW (String) ("packages"),
-                            NEW (ObjectArray) (TYPEOF (String))
-                          )->second.object;
+  MapFile     *depends  = NEW (MapFile)(dependsfile->base, FILEACCESS_WRITE | (update * FILEACCESS_READ));
+  ObjectArray *packages = Map_ValueAt((Map*)depends, "packages");
+  
+  packages = packages 
+    ? packages 
+    : Map_Set((Map*)depends,
+        NEW (String) ("packages"),
+        NEW (ObjectArray) (TYPEOF (String))
+      )->second.object;
 
   get_files(depends, cache, packages, workdir);
 

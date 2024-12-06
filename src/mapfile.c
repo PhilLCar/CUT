@@ -30,7 +30,7 @@ MapFile *_(Construct)(const char *filename, FileAccessModes mode)
             // Remove the ':'
             String_SubString(line, 0, -1);
 
-            current = Map_Set(BASE(0), line->base, NEW (ObjectArray)(TYPEOF (String)))->second.object;
+            current = Map_Set(BASE(0), line, NEW (ObjectArray)(TYPEOF (String)))->second.object;
           }
         }
 

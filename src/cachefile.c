@@ -65,4 +65,22 @@ void _(Destruct)()
   }
 }
 
+long statfile(const char *filename)
+{
+  char  buffer[2048];
+  FILE *result;
+
+  sprintf(buffer, "stat -c %%Y %s", filename);
+
+  result = popen(buffer, "r");
+
+  memset(buffer, 0, sizeof(buffer));
+
+  for (int c = fgetc(result), i = 0; c != EOF; c = fgetc(result), i++) buffer[i] = c;
+
+  pclose(result);
+
+  return atol(buffer);
+}
+
 #undef TYPENAME
