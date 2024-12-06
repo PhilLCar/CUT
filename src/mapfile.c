@@ -6,7 +6,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 MapFile *_(Construct)(const char *filename, FileAccessModes mode)
 {  
-  if (Map_Construct(BASE(0), TYPEOF (String), TYPEOF (Set), (Comparer)String_Cmp)) {
+  if (Map_Construct(BASE(0), TYPEOF (String), TYPEOF (ObjectArray), (Comparer)String_Cmp)) {
     if (filename) {
       this->filename = malloc(strlen(filename) + 1);
       this->mode     = mode;
@@ -18,14 +18,14 @@ MapFile *_(Construct)(const char *filename, FileAccessModes mode)
       CharStream *stream = (CharStream*) NEW (FileStream) (fopen(filename, "r"));
 
       if (stream) {
-        String *line    = NULL;
-        Set    *current = NULL;
+        String      *line    = NULL;
+        ObjectArray *current = NULL;
 
         while ((line = CharStream_GetLine(stream))) {
           if (!line->length) {
             DELETE (line)
           } else if (line->base[0] == ' ') {
-            Set_Add(current, String_Trim(line));
+            ObjectArray_Push(current, String_Trim(line));
           } else {
             // Remove the ':'
             String_SubString(line, 0, -1);

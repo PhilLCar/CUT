@@ -10,14 +10,10 @@
 #include <list.h>
 #include <cachefile.h>
 #include <args.h>
-#include <set.h>
 #include <mapfile.h>
 #include <string.file.h>
 
-// Those would be closures, but since C they are globals (not thread safe)
-const char   *home;
-const List   *travel;
-const String *package;
+const char *home;
 
 int sources = 0;
 
@@ -31,26 +27,42 @@ OPTIONS(
   { "working-directory", '+', "Specifies the working directory",                  ARG_TYPE_CHARPTR, NULL           }
 );
 
-int travel_comparer(const String *element, const String *against, Comparer comparer)
+void add_dependecy(const List *travelled, Comparer orderer, ObjectArray *dependencies, String *value)
 {
-  int result = 1;
+  int insert = -1;
+  int prev   = -1;
 
-  // TODO: Kindof work but needs the regular unique check as well!!
-  if (String_Equals(element, against)) {
-    result = 0;
-  } else if (List_In(travel, element, comparer)) {
-    result = -1;
+  for (int i = 0; i < dependencies->base.size; i++) {
+    String *current = Array_At((Array*)dependencies, i);
+
+    if (String_Equals(current, value)) {
+      prev = i;
+      break;
+    }
+
+    // If other dependency depends on it, place it before
+    if (insert < 0 && List_In(travelled, current, orderer)) {
+      insert = i;
+    }
   }
 
-  return result;
+  if (prev >= 0) {
+    if (insert >= 0) {
+     ObjectArray_Insert(dependencies, insert, ObjectArray_RemoveAt(dependencies, prev, 1));
+    }
+
+    DELETE(value);
+  } else {
+    ObjectArray_Push(dependencies, value);
+  }
 }
 
-int travel_pac_comparer(const String *element, const String *against)
+int package_orderer(const String *element, const String *against)
 {
   return String_Contains(element, against);
 }
 
-int travel_inc_comparer(const String *element, const String *against)
+int include_orderer(const String *element, const String *against)
 {
   String* path   = Path_Folder(element->base);
   int     result = String_Compare(path, against);
@@ -58,16 +70,6 @@ int travel_inc_comparer(const String *element, const String *against)
   DELETE (path);
 
   return result;
-}
-
-int package_comparer(const String *element, const String *against)
-{
-  return travel_comparer(element, against, (Comparer)travel_pac_comparer);
-}
-
-int include_comparer(const String *element, const String *against)
-{
-  return travel_comparer(element, against, (Comparer)travel_inc_comparer);
 }
 
 int record_comparer(const CacheRecord *record, const String *filename)
@@ -101,7 +103,7 @@ String *find(const char *base, const char *destination)
   return found;
 }
 
-void get_includes(CacheFile *cache, Set *packages, Set *includes, List *travelled, const char *filename)
+void get_includes(CacheFile *cache, ObjectArray *packages, ObjectArray *includes, List *travelled, const char *filename)
 {
   CharStream *stream = (CharStream*)NEW (FileStream)(fopen(filename, "r"));
 
@@ -125,19 +127,20 @@ void get_includes(CacheFile *cache, Set *packages, Set *includes, List *travelle
             String *filename    = find(packagename->base, record->file->base);
 
             if (filename && !List_In(travelled, filename, (Comparer)String_Compare)) {
-              List *step = List_Push(travelled, filename, 1);
+              List   *step        = List_Push(travelled, filename, 0);
+              String *includename = Path_Folder(filename->base);
+
+              add_dependecy(travelled, (Comparer)package_orderer, packages, packagename);
+              add_dependecy(travelled, (Comparer)include_orderer, includes, includename);
 
               get_includes(cache, packages, includes, step, filename->base);
-
-              travel = step;
-
-              Set_Add(packages, packagename);
-              Set_Add(includes, Path_Folder(filename->base));
 
               List_Pop(step, NULL);
             } else {
               DELETE (packagename);
             }
+            
+            DELETE (filename);
           }
         }
       }
@@ -149,7 +152,7 @@ void get_includes(CacheFile *cache, Set *packages, Set *includes, List *travelle
   DELETE (stream);
 }
 
-void get_files(MapFile *depends, CacheFile *cache, Set *packages, const char *folder)
+void get_files(MapFile *depends, CacheFile *cache, ObjectArray *packages, const char *folder)
 {
   for (DirectoryIterator *di = dopen(folder); di; dnext(&di)) {
     if (di->current.type == DIRTYPE_DIRECTORY) {
@@ -171,10 +174,10 @@ void get_files(MapFile *depends, CacheFile *cache, Set *packages, const char *fo
 
         dfullname(di, filename, sizeof(filename));
 
-        Set *includes = Map_Set((Map*)depends,
-                          NEW (String) (di->current.name),
-                          NEW (Set) (TYPEOF (String), (Comparer)include_comparer)
-                        )->second.object;
+        ObjectArray *includes = Map_Set((Map*)depends,
+                                  NEW (String) (di->current.name),
+                                  NEW (ObjectArray) (TYPEOF (String))
+                                )->second.object;
         
         get_includes(cache, packages, includes, travelled, filename);
 
@@ -201,12 +204,12 @@ int main(int argc, char *argv[])
     cachefile = Path_Combine(home, "CUT/.cut/.cache");
   }
 
-  CacheFile *cache    = NEW (CacheFile)(cachefile->base, FILEACCESS_READ);
-  MapFile   *depends  = NEW (MapFile)(dependsfile->base, FILEACCESS_WRITE);
-  Set       *packages = Map_Set((Map*)depends,
-                          NEW (String) ("packages"),
-                          NEW (Set) (TYPEOF (String), (Comparer)package_comparer)
-                        )->second.object;
+  CacheFile   *cache    = NEW (CacheFile)(cachefile->base, FILEACCESS_READ);
+  MapFile     *depends  = NEW (MapFile)(dependsfile->base, FILEACCESS_WRITE);
+  ObjectArray *packages = Map_Set((Map*)depends,
+                            NEW (String) ("packages"),
+                            NEW (ObjectArray) (TYPEOF (String))
+                          )->second.object;
 
   get_files(depends, cache, packages, workdir);
 
