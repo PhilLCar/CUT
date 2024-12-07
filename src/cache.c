@@ -1,21 +1,22 @@
 #include <diagnostic.h>
 #include <directory.h>
 #include <exception.h>
-#include <diagnostic.h>
 #include <cachefile.h>
+#include <str.h>
+#include <string.file.h>
+#include <args.h>
 
-const char *root;
-int         rootlen;
+OPTIONS();
 
-void build_cache(CacheFile *file, const char *utilities)
+void build_cache(CacheFile *file, const char *directory, int homelen)
 {
-  for (DirectoryIterator *di = dopen(utilities); di; dnext(&di)) {
+  for (DirectoryIterator *di = dopen(directory); di; dnext(&di)) {
     if (di->current.type == DIRTYPE_DIRECTORY) {
       if (di->current.name[0] != '.') {
         char directory[2048];
 
         dfullname(di, directory, sizeof(directory));
-        build_cache(file, directory);
+        build_cache(file, directory, homelen);
       }
     } else {
       char ext[8];
@@ -27,7 +28,7 @@ void build_cache(CacheFile *file, const char *utilities)
         char filename[2048];
 
         dfullname(di, filename, sizeof(filename));
-        sprintf(package, "%s", di->path + rootlen);
+        sprintf(package, "%s", di->path + homelen);
 
         for (int i = 0; package[i]; i++) {
           if (package[i] == PATH_MARKER) {
@@ -44,25 +45,30 @@ void build_cache(CacheFile *file, const char *utilities)
 
 int main(int argc, char *argv[])
 {
+  Args *args = NEW (Args) (argc, argv, NULL);
+
   CHECK_MEMORY
 
-  char cachefile[2048];
+  String *home;
+  String *cachefile;
 
-  root = getenv("CUT_HOME");
+  const char *homevar = getenv("CUT_HOME");
 
-  if (!root || !root[0]) {
+  if (!homevar || !homevar[0]) {
     THROW(NEW (Exception)("No CUT_HOME environment variable defined... exiting!"));
   } else {
-    rootlen = strlen(root);
-
-    sprintf(cachefile, "%s%s", root, "CUT/.cut/.cache");
+    home      = NEW (String)(homevar);
+    cachefile = Path_Combine(homevar, "CUT/.cut/.cache");
   }
 
-  CacheFile *cache = NEW (CacheFile)(cachefile, FILEACCESS_WRITE);
+  CacheFile *cache = NEW (CacheFile)(cachefile->base, FILEACCESS_WRITE);
 
-  build_cache(cache, root);
+  build_cache(cache, home->base, home->length);
 
   DELETE (cache);
+  DELETE (cachefile);
+  DELETE (home);
+  DELETE (args);
 
   CHECK_MEMORY
   STOP_WATCHING

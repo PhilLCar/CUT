@@ -13,25 +13,26 @@
 #include <mapfile.h>
 #include <string.file.h>
 
-const char *home;
+typedef struct {
+  const char *home;
+  int         source;
+  int         update;
+} Env;
 
-int sources = 0;
-int update  = 0;
-
-void option_sources(Args *args, ArgValue value)
+void option_source(Args *args, ArgValue value)
 {
-  sources = value.as_integer;
+  ((Env*)args->base)->source = value.as_integer;
 }
 
 void option_update(Args *args, ArgValue value)
 {
-  update = value.as_integer;
+  ((Env*)args->base)->update = value.as_integer;
 }
 
 OPTIONS(
-  { "sources",           's', "Finds dependencies in sources instead of headers",    ARG_TYPE_BOOLEAN, option_sources },
-  { "update",            'u', "Only rebuild the outdated parts of the depends file", ARG_TYPE_BOOLEAN, option_update  },
-  { "working-directory", '+', "Specifies the working directory",                     ARG_TYPE_CHARPTR, NULL           }
+  { "source",            's', "Finds dependencies in sources instead of headers",    ARG_TYPE_BOOLEAN, option_source },
+  { "update",            'u', "Only rebuild the outdated parts of the depends file", ARG_TYPE_BOOLEAN, option_update },
+  { "working-directory", '+', "Specifies the working directory",                     ARG_TYPE_CHARPTR, NULL          }
 );
 
 void add_dependecy(const List *travelled, Comparer orderer, ObjectArray *dependencies, String *value)
@@ -110,7 +111,7 @@ String *find(const char *base, const char *destination)
   return found;
 }
 
-void get_includes(CacheFile *cache, ObjectArray *packages, ObjectArray *includes, List *travelled, const char *filename)
+void get_includes(CacheFile *cache, ObjectArray *packages, ObjectArray *includes, List *travelled, const char *filename, Env *env)
 {
   CharStream *stream = (CharStream*)NEW (FileStream)(fopen(filename, "r"));
 
@@ -130,20 +131,20 @@ void get_includes(CacheFile *cache, ObjectArray *packages, ObjectArray *includes
           CacheRecord *record = ObjectArray_In((ObjectArray*)cache, line, (Comparer)record_comparer);
 
           if (record) {
-            String *packagename = find(home,              record->package->base);
+            String *packagename = find(env->home,         record->package->base);
             String *filename    = find(packagename->base, record->file->base);
 
             if (filename && packagename) {
               long modified = statfile(filename->base);
 
-              if ((!update || modified > record->lastmod) && !List_In(travelled, filename, (Comparer)String_Compare)) {
+              if ((!env->update || modified > record->lastmod) && !List_In(travelled, filename, (Comparer)String_Compare)) {
                 List   *step        = List_Push(travelled, filename, 0);
                 String *includename = Path_Folder(filename->base);
 
                 add_dependecy(travelled, (Comparer)package_orderer, packages, packagename);
                 add_dependecy(travelled, (Comparer)include_orderer, includes, includename);
 
-                get_includes(cache, packages, includes, step, filename->base);
+                get_includes(cache, packages, includes, step, filename->base, env);
 
                 List_Pop(step, NULL);
               } else {
@@ -165,7 +166,7 @@ void get_includes(CacheFile *cache, ObjectArray *packages, ObjectArray *includes
   DELETE (stream);
 }
 
-void get_files(MapFile *depends, CacheFile *cache, ObjectArray *packages, const char *folder)
+void get_files(MapFile *depends, CacheFile *cache, ObjectArray *packages, const char *folder, Env *env)
 {
   for (DirectoryIterator *di = dopen(folder); di; dnext(&di)) {
     if (di->current.type == DIRTYPE_DIRECTORY) {
@@ -173,15 +174,15 @@ void get_files(MapFile *depends, CacheFile *cache, ObjectArray *packages, const 
         char directory[2048];
 
         dfullname(di, directory, sizeof(directory));
-        get_files(depends, cache, packages, directory);
+        get_files(depends, cache, packages, directory, env);
       }
     } else {
       char ext[8];
 
       fileext(di->current.name, ext, sizeof(ext));
 
-      if ((sources && (!strcmp(ext, ".c") || !strcmp(ext, ".cpp")))
-      || (!sources && (!strcmp(ext, ".h") || !strcmp(ext, ".hpp")))) {
+      if ((env->source && (!strcmp(ext, ".c") || !strcmp(ext, ".cpp")))
+      || (!env->source && (!strcmp(ext, ".h") || !strcmp(ext, ".hpp")))) {
         List        *travelled = NEW (List)();
         ObjectArray *includes  = Map_ValueAt((Map*)depends, di->current.name);
         char         filename[2048];
@@ -195,7 +196,7 @@ void get_files(MapFile *depends, CacheFile *cache, ObjectArray *packages, const 
               NEW (ObjectArray) (TYPEOF (String))
             )->second.object;
         
-        get_includes(cache, packages, includes, travelled, filename);
+        get_includes(cache, packages, includes, travelled, filename, env);
 
         DELETE (travelled);
       }
@@ -205,23 +206,23 @@ void get_files(MapFile *depends, CacheFile *cache, ObjectArray *packages, const 
 
 int main(int argc, char *argv[])
 {
+  Env env = { getenv("CUT_HOME"), 0, 0 };
+
   CHECK_MEMORY
 
-  Args       *args        = NEW (Args) (argc, argv, NULL);
+  Args       *args        = NEW (Args) (argc, argv, &env);
   const char *workdir     = Args_Name(args, "working-directory").as_charptr;
   String     *dependsfile = Path_Combine(workdir, ".cut/depends.map");
   String     *cachefile   = NULL;
 
-  home = getenv("CUT_HOME");
-
-  if (!home || !home[0]) {
+  if (!env.home || !env.home[0]) {
     THROW (NEW (Exception) ("No CUT_HOME environment variable defined... exiting!"));
   } else {
-    cachefile = Path_Combine(home, "CUT/.cut/.cache");
+    cachefile = Path_Combine(env.home, "CUT/.cut/.cache");
   }
 
   CacheFile   *cache    = NEW (CacheFile)(cachefile->base, FILEACCESS_READ);
-  MapFile     *depends  = NEW (MapFile)(dependsfile->base, FILEACCESS_WRITE | (update * FILEACCESS_READ));
+  MapFile     *depends  = NEW (MapFile)(dependsfile->base, FILEACCESS_WRITE | (env.update * FILEACCESS_READ));
   ObjectArray *packages = Map_ValueAt((Map*)depends, "packages");
   
   packages = packages 
@@ -231,7 +232,7 @@ int main(int argc, char *argv[])
         NEW (ObjectArray) (TYPEOF (String))
       )->second.object;
 
-  get_files(depends, cache, packages, workdir);
+  get_files(depends, cache, packages, workdir, &env);
 
   DELETE (cache)
   DELETE (depends);

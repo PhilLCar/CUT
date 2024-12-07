@@ -44,4 +44,3 @@ test: reset bin/$(NAME).test
 	./bin/$(NAME).test
 	
 clean: clean-base
-	rm -rf lib

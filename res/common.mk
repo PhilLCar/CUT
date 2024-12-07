@@ -72,6 +72,7 @@ depends:
 	make .cut/$(DEPENDS)
 	
 clean-base:
+	rm -rf lib
 	rm -rf obj
 	rm -rf bin
 	rm -rf .cut

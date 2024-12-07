@@ -5,12 +5,17 @@
 #include <str.h>
 #include <string.charstream.h>
 #include <collection.str.h>
+#include <args.h>
 
 #define WIDTH_FILE 40
 #define WIDTH_LINE  5
 #define WIDTH_PRIO 15
 #define WIDTH_WHAT 20
 #define WIDTH_DESC 40
+
+OPTIONS(
+  { "path", '-', "The path to examine for 'todos'", ARG_TYPE_CHARPTR, NULL }
+);
 
 void printrep(char *file, char *line, char *prio, char *what, char *desc) {
   char filebuf[WIDTH_FILE + 1];
@@ -44,9 +49,13 @@ void printrep(char *file, char *line, char *prio, char *what, char *desc) {
 int header = 0;
 int main(int argc, char *argv[])
 {
-  const char *dirname = argc > 1 ? argv[1] : ".";
+  Args *args = NEW (Args) (argc, argv, NULL);
 
-  for (DirectoryIterator *di = dopen(dirname); di; dnext(&di))
+  const char *path = Args_Name(args, "path").as_charptr;
+
+  path = path ? path : ".";
+
+  for (DirectoryIterator *di = dopen(path); di; dnext(&di))
   {
     char fullname[4096];
     char extension[32];
@@ -110,6 +119,8 @@ int main(int argc, char *argv[])
   {
     printf("Nothing to do...\n");
   }
+
+  DELETE (args);
 
   return 0;
 }

@@ -13,10 +13,12 @@ INCLUDE_FROM   = sources
 #include common commands
 include $(CUT_HOME)CUT/res/common.mk
 
+LIBOBJS = $(patsubst %, obj/%$(EXT_SRC).o, $(basename $(notdir $(HEADERS))))
+
 lib:
 	mkdir lib
 
-lib/lib$(NAME).a: $(OBJECTS) | lib
+lib/lib$(NAME).a: $(LIBOBJS) | lib
 	ar crs $@ $?
 
 # Global rules
