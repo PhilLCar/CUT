@@ -37,7 +37,12 @@ DIRECTORIES = $(PROJECT_ROOTS) .
 INCLUDES    = $(patsubst %, -I%/inc, $(DIRECTORIES))
 SOURCES     = $(foreach path, $(DIRECTORIES), $(wildcard $(path)/src/*$(EXT_SRC)))
 HEADERS     = $(foreach path, $(DIRECTORIES), $(wildcard $(path)/inc/*$(EXT_HDR)))
-OBJECTS     = $(patsubst %, obj/%.o, $(notdir $(SOURCES)))
+
+ifeq "$(INCLUDE_FROM)" "headers"
+	OBJECTS = $(patsubst %, obj/%.o, $(notdir $(SOURCES)))
+else
+	OBJECTS = $(patsubst %, obj/%$(EXT_SRC).o, $(basename $(notdir $(HEADERS))))
+endif
 
 # Add the debug flag if variable is defined
 ifdef DEBUG
@@ -71,8 +76,31 @@ depends:
 	rm -rf .cut
 	make .cut/$(DEPENDS)
 	
-clean-base:
+clean:
 	rm -rf lib
 	rm -rf obj
 	rm -rf bin
 	rm -rf .cut
+
+lib:
+	mkdir lib
+
+lib/lib$(NAME).a: $(OBJECTS) | lib
+	ar crs $@ $?
+
+# Global rules
+library: lib/lib$(NAME).a
+
+bin/$(NAME).test: lib/lib$(NAME).a | bin
+	$(eval LIBS:= $(patsubst %, %/lib, $(shell $(BOOTSTRAP) --library)))
+	$(eval LINK:= $(patsubst %, -L%, $(LIBS)))
+	$(eval INC:=  $(patsubst %, -I%/inc, $(shell $(BOOTSTRAP) --library)))
+	$(eval FILE:= $(filter-out -l:, $(foreach path, $(LIBS), -l:$(notdir $(wildcard $(path)/*)))))
+
+	$(CMP) -g tst/main$(EXT_SRC) $(CFLAGS) $(LIBRARIES) $(INCLUDES) $(INC) -Llib -l$(NAME) $(LINK) $(FILE) -o bin/$(NAME).test 
+
+reset:
+	rm -f bin/$(NAME).test
+
+test: reset bin/$(NAME).test
+	./bin/$(NAME).test

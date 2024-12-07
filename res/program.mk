@@ -13,18 +13,7 @@ INCLUDE_FROM   = sources
 #include common commands
 include $(CUT_HOME)CUT/res/common.mk
 
-LIBOBJS = $(patsubst %, obj/%$(EXT_SRC).o, $(basename $(notdir $(HEADERS))))
-
-lib:
-	mkdir lib
-
-lib/lib$(NAME).a: $(LIBOBJS) | lib
-	ar crs $@ $?
-
-# Global rules
-library: lib/lib$(NAME).a
-
-bin/$(NAME): obj/main.o | lib/lib$(NAME).a  bin
+bin/$(NAME): obj/main.o | lib/lib$(NAME).a bin
 	$(eval LIBS:= $(patsubst %, %/lib, $(shell $(BOOTSTRAP) --library)))
 	$(eval LINK:= $(patsubst %, -L%, $(LIBS)))
 	$(eval INC:=  $(patsubst %, -I%/inc, $(shell $(BOOTSTRAP) --library)))
@@ -32,7 +21,7 @@ bin/$(NAME): obj/main.o | lib/lib$(NAME).a  bin
 
 	$(CMP) -g obj/main.o $(CFLAGS) $(LIBRARIES) $(INCLUDES) $(INC) $(LINK) $(FILE) $(FILE) -o bin/$(NAME) 
 
-bin/%: obj/%.o | lib/lib$(NAME).a  bin
+bin/%: obj/%.o | lib/lib$(NAME).a bin
 	$(eval LIBS:= $(patsubst %, %/lib, $(shell $(BOOTSTRAP) --library)))
 	$(eval LINK:= $(patsubst %, -L%, $(LIBS)))
 	$(eval INC:=  $(patsubst %, -I%/inc, $(shell $(BOOTSTRAP) --library)))
@@ -40,20 +29,4 @@ bin/%: obj/%.o | lib/lib$(NAME).a  bin
 
 	$(CMP) -g $< $(CFLAGS) $(LIBRARIES) $(INCLUDES) $(INC) $(LINK) $(FILE) $(FILE) -o $@
 
-bin/$(NAME).test: lib/lib$(NAME).a | bin
-	$(eval LIBS:= $(patsubst %, %/lib, $(shell $(BOOTSTRAP) --library)))
-	$(eval LINK:= $(patsubst %, -L%, $(LIBS)))
-	$(eval INC:=  $(patsubst %, -I%/inc, $(shell $(BOOTSTRAP) --library)))
-	$(eval FILE:= $(filter-out -l:, $(foreach path, $(LIBS), -l:$(notdir $(wildcard $(path)/*)))))
-
-	$(CMP) -g tst/main$(EXT_SRC) $(CFLAGS) $(LIBRARIES) $(INCLUDES) $(INC) $(LINK) $(FILE) -o bin/$(NAME).test 
-
-reset:
-	rm -f bin/$(NAME).test
-
-test: reset bin/$(NAME).test
-	./bin/$(NAME).test
-
 program: bin/$(NAME)
-	
-clean: clean-base
