@@ -184,17 +184,17 @@ void get_files(MapFile *depends, CacheFile *cache, ObjectArray *packages, const 
       if ((env->source && (!strcmp(ext, ".c") || !strcmp(ext, ".cpp")))
       || (!env->source && (!strcmp(ext, ".h") || !strcmp(ext, ".hpp")))) {
         List        *travelled = NEW (List)();
-        ObjectArray *includes  = Map_ValueAt((Map*)depends, di->current.name);
+        ObjectArray *includes;
         char         filename[2048];
 
         dfullname(di, filename, sizeof(filename));
 
-        includes = includes 
-          ? includes 
-          : Map_Set((Map*)depends,
-              NEW (String) (di->current.name),
-              NEW (ObjectArray) (TYPEOF (String))
-            )->second.object;
+        includes = IFNULL(
+          Map_ValueAt((Map*)depends, di->current.name),
+          Map_Set((Map*)depends,
+                    NEW (String) (di->current.name),
+                    NEW (ObjectArray) (TYPEOF (String))
+                  )->second.object);
         
         get_includes(cache, packages, includes, travelled, filename, env);
 
@@ -221,16 +221,14 @@ int main(int argc, char *argv[])
     cachefile = Path_Combine(env.home, "CUT/.cut/.cache");
   }
 
-  CacheFile   *cache    = NEW (CacheFile)(cachefile->base, FILEACCESS_READ);
-  MapFile     *depends  = NEW (MapFile)(dependsfile->base, FILEACCESS_WRITE | (env.update * FILEACCESS_READ));
-  ObjectArray *packages = Map_ValueAt((Map*)depends, "packages");
-  
-  packages = packages 
-    ? packages 
-    : Map_Set((Map*)depends,
-        NEW (String) ("packages"),
-        NEW (ObjectArray) (TYPEOF (String))
-      )->second.object;
+  CacheFile   *cache    = NEW (CacheFile) (cachefile->base, FILEACCESS_READ);
+  MapFile     *depends  = NEW (MapFile) (dependsfile->base, FILEACCESS_WRITE | (env.update * FILEACCESS_READ));
+  ObjectArray *packages = IFNULL(
+      Map_ValueAt((Map*)depends, "packages"), 
+      Map_Set((Map*)depends,
+                NEW (String) ("packages"),
+                NEW (ObjectArray) (TYPEOF (String))
+              )->second.object);
 
   get_files(depends, cache, packages, workdir, &env);
 
