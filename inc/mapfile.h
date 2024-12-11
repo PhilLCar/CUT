@@ -6,14 +6,14 @@
 #include <map.h>
 #include <str.h>
 #include <filestream.h>
-#include <string.charstream.h>
+#include <charstream.h>
 
 #define TYPENAME MapFile
 
-OBJECT (const char *filename, FileAccessModes mode) INHERIT(Map)
-  const char      *filename;
-  FileAccessModes  mode;
-END_OBJECT("", FILEACCESS_READ);
+OBJECT (const char *filename, AccessModes mode) INHERIT(Map)
+  const char  *filename;
+  AccessModes  mode;
+END_OBJECT("", ACCESS_READ);
 
 #undef TYPENAME
 #endif

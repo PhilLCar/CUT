@@ -3,7 +3,7 @@
 #include <oop.h>
 #include <exception.h>
 #include <filestream.h>
-#include <string.charstream.h>
+#include <charstream.h>
 #include <objectarray.h>
 #include <collection.str.h>
 #include <string.h>
@@ -11,7 +11,7 @@
 #include <cachefile.h>
 #include <args.h>
 #include <mapfile.h>
-#include <string.file.h>
+#include <path.h>
 
 typedef struct {
   const char *home;
@@ -150,6 +150,8 @@ void get_includes(CacheFile *cache, ObjectArray *packages, ObjectArray *includes
               } else {
                 DELETE (packagename);
               }
+
+              record->lastmod = modified;
               
               DELETE (filename);
             } else {
@@ -221,8 +223,8 @@ int main(int argc, char *argv[])
     cachefile = Path_Combine(env.home, "CUT/.cut/.cache");
   }
 
-  CacheFile   *cache    = NEW (CacheFile) (cachefile->base, FILEACCESS_READ);
-  MapFile     *depends  = NEW (MapFile) (dependsfile->base, FILEACCESS_WRITE | (env.update * FILEACCESS_READ));
+  CacheFile   *cache    = NEW (CacheFile) (cachefile->base, ACCESS_WRITE | ACCESS_READ);
+  MapFile     *depends  = NEW (MapFile) (dependsfile->base, ACCESS_WRITE | (env.update * ACCESS_READ));
   ObjectArray *packages = IFNULL(
       Map_ValueAt((Map*)depends, "packages"), 
       Map_Set((Map*)depends,

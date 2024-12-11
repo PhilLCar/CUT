@@ -2,7 +2,7 @@
 
 #define TYPENAME CacheFile
 
-CacheFile *_(Construct)(const char *filename, FileAccessModes mode)
+CacheFile *_(Construct)(const char *filename, AccessModes mode)
 {
   if (ObjectArray_Construct(BASE(0), TYPEOF (CacheRecord))) {
     if (filename) {
@@ -12,7 +12,7 @@ CacheFile *_(Construct)(const char *filename, FileAccessModes mode)
       strcpy((void*)this->filename, filename);
     }
 
-    if (mode & FILEACCESS_READ) {
+    if (mode & ACCESS_READ) {
       CharStream  *stream = (CharStream*)NEW (FileStream)(fopen(filename, "r"));
 
       if (stream) {
@@ -37,7 +37,7 @@ CacheFile *_(Construct)(const char *filename, FileAccessModes mode)
 void _(Destruct)()
 {
   if (this) {
-    if (this->mode & FILEACCESS_WRITE) {
+    if (this->mode & ACCESS_WRITE) {
       CharStream *stream = (CharStream*) NEW (FileStream) (fopen(this->filename, "w+"));
 
       if (stream) {
@@ -45,7 +45,7 @@ void _(Destruct)()
           CacheRecord *record = Array_At(BASE(1), i);
           String      *line   = CacheRecord_ToString(record);
 
-          CharStream_PutString(stream, line->base);
+          CharStream_PutStr(stream, line->base);
 
           DELETE (line);
         }

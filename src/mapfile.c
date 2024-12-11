@@ -4,7 +4,7 @@
 #define TYPENAME MapFile
 
 ////////////////////////////////////////////////////////////////////////////////
-MapFile *_(Construct)(const char *filename, FileAccessModes mode)
+MapFile *_(Construct)(const char *filename, AccessModes mode)
 {  
   if (Map_Construct(BASE(0), TYPEOF (String), TYPEOF (ObjectArray), (Comparer)String_Cmp)) {
     if (filename) {
@@ -14,7 +14,7 @@ MapFile *_(Construct)(const char *filename, FileAccessModes mode)
       strcpy((void*)this->filename, filename);
     }
     
-    if (mode & FILEACCESS_READ) {
+    if (mode & ACCESS_READ) {
       CharStream *stream = (CharStream*) NEW (FileStream) (fopen(filename, "r"));
 
       if (stream) {
@@ -48,7 +48,7 @@ MapFile *_(Construct)(const char *filename, FileAccessModes mode)
 void _(Destruct)()
 {
   if (this) {
-    if (this->mode & FILEACCESS_WRITE) {
+    if (this->mode & ACCESS_WRITE) {
       CharStream *stream = (CharStream*) NEW (FileStream) (fopen(this->filename, "w+"));
 
       if (stream) {
@@ -57,12 +57,12 @@ void _(Destruct)()
           String *name = pair->first.object;
           Array  *list = pair->second.object;
 
-          CharStream_PutString(stream, name->base);
-          CharStream_PutLine(stream, ":");
+          CharStream_PutStr(stream, name->base);
+          CharStream_PutLn(stream, ":");
 
           for (int j = 0; j < list->size; j++) {
-            CharStream_PutString(stream, "    ");
-            CharStream_PutLine(stream, ((String*)Array_At(list, j))->base);
+            CharStream_PutStr(stream, "    ");
+            CharStream_PutLn(stream, ((String*)Array_At(list, j))->base);
           }
         }
 

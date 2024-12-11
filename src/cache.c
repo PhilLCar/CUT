@@ -3,7 +3,7 @@
 #include <exception.h>
 #include <cachefile.h>
 #include <str.h>
-#include <string.file.h>
+#include <path.h>
 #include <args.h>
 
 OPTIONS();
@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
     cachefile = Path_Combine(homevar, "CUT/.cut/.cache");
   }
 
-  CacheFile *cache = NEW (CacheFile)(cachefile->base, FILEACCESS_WRITE);
+  CacheFile *cache = NEW (CacheFile)(cachefile->base, ACCESS_WRITE);
 
   build_cache(cache, home->base, home->length);
 

@@ -5,14 +5,14 @@
 #include <diagnostic.h>
 #include <cacherecord.h>
 #include <filestream.h>
-#include <string.charstream.h>
+#include <charstream.h>
 
 #define TYPENAME CacheFile
 
-OBJECT (const char *filename, FileAccessModes mode) INHERIT (ObjectArray)
-  const char      *filename;
-  FileAccessModes  mode;
-END_OBJECT(".cache", FILEACCESS_READ);
+OBJECT (const char *filename, AccessModes mode) INHERIT (ObjectArray)
+  const char  *filename;
+  AccessModes  mode;
+END_OBJECT(".cache", ACCESS_READ);
 
 long statfile(const char *filename);
 

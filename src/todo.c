@@ -3,7 +3,7 @@
 #include <terminal.h>
 #include <filestream.h>
 #include <str.h>
-#include <string.charstream.h>
+#include <charstream.h>
 #include <collection.str.h>
 #include <args.h>
 

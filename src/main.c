@@ -119,6 +119,7 @@ int main(int argc, char *argv[])
     NEW (String) ("todo"),
     NEW (String) ("cache"),
     NEW (String) ("depends"),
+    NEW (String) ("build"),
     NULL);
 
   if (ObjectArray_In(knownCommands, command, (Comparer)String_Cmp))
