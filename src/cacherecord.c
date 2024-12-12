@@ -7,7 +7,7 @@ CacheRecord *_(Construct)(String *line)
   if (this) {
     if (line) {
       ObjectArray *record = String_Split(line, " ");
-      String      *lastmod;
+      String      *timestamp;
 
       for (int i = 0; i < record->base.size; i++) {
         if (String_Eq(Array_At((Array*)record, i), "")) {
@@ -19,17 +19,17 @@ CacheRecord *_(Construct)(String *line)
         THROW(NEW (Exception)("Bad format!"));
       }
 
-      this->file    = ObjectArray_Remove(record, 1);
-      this->package = ObjectArray_Remove(record, 1);
-      lastmod       = ObjectArray_Remove(record, 1);
-      this->lastmod = atol(lastmod->base);
+      this->key       = ObjectArray_Remove(record, 1);
+      this->value     = ObjectArray_Remove(record, 1);
+      timestamp       = ObjectArray_Remove(record, 1);
+      this->timestamp = atol(timestamp->base);
 
-      DELETE (lastmod);
+      DELETE (timestamp);
       DELETE (record);
     } else {
-      this->file    = NULL;
-      this->package = NULL;
-      this->lastmod = 0;
+      this->key       = NULL;
+      this->value     = NULL;
+      this->timestamp = 0;
     }
   }
 
@@ -39,29 +39,35 @@ CacheRecord *_(Construct)(String *line)
 void _(Destruct)()
 {
   if (this) {
-    DELETE (this->file);
-    DELETE (this->package);
+    DELETE (this->key);
+    DELETE (this->value);
   }
 }
 
-CacheRecord *STATIC (FromValues)(const char *filename, const char *packagename, long lastmod)
+CacheRecord *STATIC (FromValues)(const char *filename, const char *packagename, long timestamp)
 {
   CacheRecord *record = NEW (CacheRecord)(NULL);
 
-  record->file    = NEW (String)(filename);
-  record->package = NEW (String)(packagename);
-  record->lastmod = lastmod;
+  record->key       = NEW (String)(filename);
+  record->value     = NEW (String)(packagename);
+  record->timestamp = timestamp;
 
   return record;
 }
 
 String *_(ToString)()
 {
-  char buffer[2048];
+  return String_Format("%-32O %-31O %-15ld", this->key, this->value, this->timestamp);
+}
 
-  sprintf(buffer, "%-32s %-31s %-15ld\n", this->file->base, this->package->base, this->lastmod);
+int _(Comparer)(CacheRecord *other)
+{
+  return String_Compare(this->key, other->key);
+}
 
-  return NEW (String)(buffer);
+int _(KeyComparer)(String *key)
+{
+  return String_Compare(this->key, key);
 }
 
 

@@ -10,7 +10,7 @@
 # General parameters
 CC     = gcc
 CCXX   = g++
-CFLAGS = $(FLAGS) -Wall \
+CFLAGS = $(FLAGS) -Wall -fPIC \
 -DVERSION_MAJOR=$(MAJOR) \
 -DVERSION_MINOR=$(MINOR) \
 -DVERSION_REVISION=$(REVISION) \
@@ -88,16 +88,21 @@ lib:
 lib/lib$(NAME).a: $(OBJECTS) | lib
 	ar crs $@ $?
 
+lib/lib$(NAME).so: $(OBJECTS) | lib
+	$(CMP) -shared $? -o $@
+
 # Global rules
 library: lib/lib$(NAME).a
 
-bin/$(NAME).test: lib/lib$(NAME).a | bin
+bin/$(NAME).test: library | bin
+# $(eval COMMA:=,)
 	$(eval LIBS:= $(patsubst %, %/lib, $(shell $(BOOTSTRAP) --library)))
 	$(eval LINK:= $(patsubst %, -L%, $(LIBS)))
+# $(eval RPATH:= $(patsubst %, -Wl$(COMMA)-rpath=%, $(LIBS)))
 	$(eval INC:=  $(patsubst %, -I%/inc, $(shell $(BOOTSTRAP) --library)))
 	$(eval FILE:= $(filter-out -l:, $(foreach path, $(LIBS), -l:$(notdir $(wildcard $(path)/*)))))
 
-	$(CMP) -g tst/main$(EXT_SRC) $(CFLAGS) $(LIBRARIES) $(INCLUDES) $(INC) -Llib -l$(NAME) $(LINK) $(FILE) -o bin/$(NAME).test 
+	$(CMP) -g tst/main$(EXT_SRC) $(CFLAGS) $(LIBRARIES) $(INCLUDES) $(INC) -Llib -l$(NAME) $(LINK) $(FILE) $(RPATH) -o bin/$(NAME).test 
 
 reset:
 	rm -f bin/$(NAME).test

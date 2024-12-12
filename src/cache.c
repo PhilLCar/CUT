@@ -6,9 +6,20 @@
 #include <path.h>
 #include <args.h>
 
-OPTIONS();
+typedef struct {
+  int source;
+} Env;
 
-void build_cache(CacheFile *file, const char *directory, int homelen)
+void option_source(Args *args, ArgValue value)
+{
+  ((Env*)args->env)->source = value.as_integer;
+}
+
+OPTIONS(
+  { "source", 's', "Finds dependencies in sources instead of headers", ARG_TYPE_BOOLEAN, option_source }
+);
+
+void build_cache(CacheFile *file, const char *directory, int homelen, Env *env)
 {
   for (DirectoryIterator *di = dopen(directory); di; dnext(&di)) {
     if (di->current.type == DIRTYPE_DIRECTORY) {
@@ -16,14 +27,15 @@ void build_cache(CacheFile *file, const char *directory, int homelen)
         char directory[2048];
 
         dfullname(di, directory, sizeof(directory));
-        build_cache(file, directory, homelen);
+        build_cache(file, directory, homelen, env);
       }
     } else {
       char ext[8];
 
       fileext(di->current.name, ext, sizeof(ext));
 
-      if (!strcmp(ext, ".h") || !strcmp(ext, ".hpp")) {
+      if ((env->source && (!strcmp(ext, ".c") || !strcmp(ext, ".cpp")))
+      || (!env->source && (!strcmp(ext, ".h") || !strcmp(ext, ".hpp")))) {
         char package[128];
         char filename[2048];
 
@@ -45,7 +57,8 @@ void build_cache(CacheFile *file, const char *directory, int homelen)
 
 int main(int argc, char *argv[])
 {
-  Args *args = NEW (Args) (argc, argv, NULL);
+  Env   env  = { 0 };
+  Args *args = NEW (Args) (argc, argv, &env);
 
   CHECK_MEMORY
 
@@ -63,7 +76,7 @@ int main(int argc, char *argv[])
 
   CacheFile *cache = NEW (CacheFile)(cachefile->base, ACCESS_WRITE);
 
-  build_cache(cache, home->base, home->length);
+  build_cache(cache, home->base, home->length, &env);
 
   DELETE (cache);
   DELETE (cachefile);

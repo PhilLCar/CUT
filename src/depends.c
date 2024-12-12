@@ -4,7 +4,7 @@
 #include <exception.h>
 #include <filestream.h>
 #include <charstream.h>
-#include <objectarray.h>
+#include <set.h>
 #include <collection.str.h>
 #include <string.h>
 #include <list.h>
@@ -21,12 +21,12 @@ typedef struct {
 
 void option_source(Args *args, ArgValue value)
 {
-  ((Env*)args->base)->source = value.as_integer;
+  ((Env*)args->env)->source = value.as_integer;
 }
 
 void option_update(Args *args, ArgValue value)
 {
-  ((Env*)args->base)->update = value.as_integer;
+  ((Env*)args->env)->update = value.as_integer;
 }
 
 OPTIONS(
@@ -35,54 +35,9 @@ OPTIONS(
   { "working-directory", '+', "Specifies the working directory",                     ARG_TYPE_CHARPTR, NULL          }
 );
 
-void add_dependecy(const List *travelled, Comparer orderer, ObjectArray *dependencies, String *value)
-{
-  int insert = -1;
-  int prev   = -1;
-
-  for (int i = 0; i < dependencies->base.size; i++) {
-    String *current = Array_At((Array*)dependencies, i);
-
-    if (String_Equals(current, value)) {
-      prev = i;
-      break;
-    }
-
-    // If other dependency depends on it, place it before
-    if (insert < 0 && List_In(travelled, current, orderer)) {
-      insert = i;
-    }
-  }
-
-  if (prev >= 0) {
-    if (insert >= 0) {
-     ObjectArray_Insert(dependencies, insert, ObjectArray_RemoveAt(dependencies, prev, 1));
-    }
-
-    DELETE(value);
-  } else {
-    ObjectArray_Push(dependencies, value);
-  }
-}
-
-int package_orderer(const String *element, const String *against)
-{
-  return String_Contains(element, against);
-}
-
-int include_orderer(const String *element, const String *against)
-{
-  String* path   = Path_Folder(element->base);
-  int     result = String_Compare(path, against);
-
-  DELETE (path);
-
-  return result;
-}
-
 int record_comparer(const CacheRecord *record, const String *filename)
 {
-  return String_Compare(record->file, filename);
+  return String_Compare(record->key, filename);
 }
 
 String *find(const char *base, const char *destination)
@@ -90,6 +45,7 @@ String *find(const char *base, const char *destination)
   String *found = NULL;
   char    path[2048];
 
+  // TODO: Optimize by going one layer at-a-time instead of recursively
   for (DirectoryIterator *di = dopen(base); di; dnext(&di)) {
     dfullname(di, path, sizeof(path));
 
@@ -111,7 +67,7 @@ String *find(const char *base, const char *destination)
   return found;
 }
 
-void get_includes(CacheFile *cache, ObjectArray *packages, ObjectArray *includes, List *travelled, const char *filename, Env *env)
+void get_includes(CacheFile *cache, Set *packages, Set *includes, List *travelled, const char *filename, Env *env)
 {
   CharStream *stream = (CharStream*)NEW (FileStream)(fopen(filename, "r"));
 
@@ -128,21 +84,20 @@ void get_includes(CacheFile *cache, ObjectArray *packages, ObjectArray *includes
 
           String_SubString(line, 1, -end);
 
-          CacheRecord *record = ObjectArray_In((ObjectArray*)cache, line, (Comparer)record_comparer);
+          CacheRecord *record = ObjectArray_ContainsKey((ObjectArray*)cache, line);
 
           if (record) {
-            String *packagename = find(env->home,         record->package->base);
-            String *filename    = find(packagename->base, record->file->base);
+            // TODO: cache find results
+            String *packagename = find(env->home,         record->value->base);
+            String *filename    = find(packagename->base, record->key->base);
 
             if (filename && packagename) {
-              long modified = statfile(filename->base);
-
-              if ((!env->update || modified > record->lastmod) && !List_In(travelled, filename, (Comparer)String_Compare)) {
-                List   *step        = List_Push(travelled, filename, 0);
+              if (!List_Contains(travelled, filename)) {
+                List   *step        = List_Push(travelled, filename, 1);
                 String *includename = Path_Folder(filename->base);
 
-                add_dependecy(travelled, (Comparer)package_orderer, packages, packagename);
-                add_dependecy(travelled, (Comparer)include_orderer, includes, includename);
+                Set_Add(packages, packagename);
+                Set_Add(includes, includename);
 
                 get_includes(cache, packages, includes, step, filename->base, env);
 
@@ -150,10 +105,6 @@ void get_includes(CacheFile *cache, ObjectArray *packages, ObjectArray *includes
               } else {
                 DELETE (packagename);
               }
-
-              record->lastmod = modified;
-              
-              DELETE (filename);
             } else {
               THROW (NEW (Exception) ("File or package wasn't found"));
             }
@@ -168,7 +119,7 @@ void get_includes(CacheFile *cache, ObjectArray *packages, ObjectArray *includes
   DELETE (stream);
 }
 
-void get_files(MapFile *depends, CacheFile *cache, ObjectArray *packages, const char *folder, Env *env)
+void get_files(MapFile *depends, CacheFile *cache, Set *packages, const char *folder, Env *env)
 {
   for (DirectoryIterator *di = dopen(folder); di; dnext(&di)) {
     if (di->current.type == DIRTYPE_DIRECTORY) {
@@ -185,17 +136,19 @@ void get_files(MapFile *depends, CacheFile *cache, ObjectArray *packages, const 
 
       if ((env->source && (!strcmp(ext, ".c") || !strcmp(ext, ".cpp")))
       || (!env->source && (!strcmp(ext, ".h") || !strcmp(ext, ".hpp")))) {
-        List        *travelled = NEW (List)();
-        ObjectArray *includes;
-        char         filename[2048];
+        List *travelled = NEW (List)();
+        Set  *includes;
+        char  filename[2048];
+
+        // TODO: compare to cache timestamp
 
         dfullname(di, filename, sizeof(filename));
 
         includes = IFNULL(
-          Map_ValueAt((Map*)depends, di->current.name),
+          Map_ValueAtKey((Map*)depends, di->current.name),
           Map_Set((Map*)depends,
                     NEW (String) (di->current.name),
-                    NEW (ObjectArray) (TYPEOF (String))
+                    NEW (Set) (TYPEOF (String))
                   )->second.object);
         
         get_includes(cache, packages, includes, travelled, filename, env);
@@ -204,6 +157,34 @@ void get_files(MapFile *depends, CacheFile *cache, ObjectArray *packages, const 
       }
     }
   }
+}
+
+void get_dependencies(String *package, Set *dependencies) {
+  String  *packagedepends = Path_Combine(package->base, ".cut/depends.map");
+  MapFile *depends        = NEW (MapFile) (packagedepends->base, ACCESS_READ);
+
+  Array *set = Map_ValueAtKey((Map*)depends, "packages");
+
+  for (int i = 0; i < set->size; i++) {
+    String *pkg = Array_At(set, i);
+
+    Set_Add(dependencies, String_Copy(pkg));
+
+    get_dependencies(pkg, dependencies);
+  }
+
+  DELETE (depends);
+  DELETE (packagedepends);
+}
+
+void order_packages(Array *packages)
+{
+  // for (int i = 0; i < packages->size; i++) {
+  //   String *package = Array_At(packages, i);
+
+  //   Set *dependencies = NEW (Set) (TYPEOF (String));
+  // }
+
 }
 
 int main(int argc, char *argv[])
@@ -223,16 +204,18 @@ int main(int argc, char *argv[])
     cachefile = Path_Combine(env.home, "CUT/.cut/.cache");
   }
 
-  CacheFile   *cache    = NEW (CacheFile) (cachefile->base, ACCESS_WRITE | ACCESS_READ);
-  MapFile     *depends  = NEW (MapFile) (dependsfile->base, ACCESS_WRITE | (env.update * ACCESS_READ));
-  ObjectArray *packages = IFNULL(
-      Map_ValueAt((Map*)depends, "packages"), 
+  CacheFile *cache    = NEW (CacheFile) (cachefile->base, ACCESS_WRITE | ACCESS_READ);
+  MapFile   *depends  = NEW (MapFile) (dependsfile->base, ACCESS_WRITE | (env.update * ACCESS_READ));
+  Set       *packages = IFNULL(
+      Map_ValueAtKey((Map*)depends, "packages"), 
       Map_Set((Map*)depends,
                 NEW (String) ("packages"),
-                NEW (ObjectArray) (TYPEOF (String))
+                NEW (Set) (TYPEOF (String))
               )->second.object);
 
   get_files(depends, cache, packages, workdir, &env);
+
+  //order_packages(packages);
 
   DELETE (cache)
   DELETE (depends);

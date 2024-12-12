@@ -106,7 +106,7 @@ int header_comparer(String *against, String *reference)
   return result;
 }
 
-String *object(String *init, ObjectArray *includes, Array *libraries, ObjectArray *inputs, String *output)
+String *compile_obj(String *init, ObjectArray *includes, Array *libraries, String *input, String *output)
 {
   for (int i = 0; i < includes->base.size; i++) {
     String_Concat(init, String_Format(" -I%O", ObjectArray_At(includes, i)));
@@ -119,14 +119,15 @@ String *object(String *init, ObjectArray *includes, Array *libraries, ObjectArra
     String_Concat(init, String_Format(" -l:%O", pair->second.object));
   }
 
-  for (int i = 0; i < inputs->base.size; i++)
-  {
-    String_Concat(init, String_Format(" %O", ObjectArray_At(inputs, i)));
-  }
-
   String_Concat(init, String_Format(" -o %O", output));
+  String_Concat(init, String_Format(" %O", input));
 
   return init;
+}
+
+String *compile_bin(String *init, ObjectArray *includes, Array *libraries, ObjectArray *inputs, String *output)
+{
+  
 }
 
 

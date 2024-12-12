@@ -42,12 +42,9 @@ void _(Destruct)()
 
       if (stream) {
         for (int i = 0; i < BASE(1)->size; i++) {
-          CacheRecord *record = Array_At(BASE(1), i);
-          String      *line   = CacheRecord_ToString(record);
+          CacheRecord *record = ObjectArray_At(BASE(0), i);
 
-          CharStream_PutStr(stream, line->base);
-
-          DELETE (line);
+          CharStream_PutLine(stream, record);
         }
 
         DELETE (stream);

@@ -68,12 +68,14 @@ int main(int argc, char *argv[])
       CharStream *file = (CharStream*) NEW (FileStream) (fopen(fullname, "r"));
 
       if (file) {
+        int     num = 0;
         String *line;
 
         while ((line = CharStream_GetLine(file))) {
-          int num      = 0;
           int icomment = String_Cnt(line, "//");
           int index    = String_Cnt(line, "TODO:");
+
+          ++num;
 
           if (icomment >= 0 && index > icomment) {
             String *desc  = NEW (String) (String_Trim(String_SubString(line, index + 5, 0))->base);

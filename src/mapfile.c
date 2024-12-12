@@ -6,7 +6,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 MapFile *_(Construct)(const char *filename, AccessModes mode)
 {  
-  if (Map_Construct(BASE(0), TYPEOF (String), TYPEOF (ObjectArray), (Comparer)String_Cmp)) {
+  if (Map_Construct(BASE(0), TYPEOF (String), TYPEOF (Set))) {
     if (filename) {
       this->filename = malloc(strlen(filename) + 1);
       this->mode     = mode;
@@ -30,7 +30,7 @@ MapFile *_(Construct)(const char *filename, AccessModes mode)
             // Remove the ':'
             String_SubString(line, 0, -1);
 
-            current = Map_Set(BASE(0), line, NEW (ObjectArray)(TYPEOF (String)))->second.object;
+            current = Map_Set(BASE(0), line, NEW (Set)(TYPEOF (String)))->second.object;
           }
         }
 

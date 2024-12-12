@@ -18,7 +18,7 @@ typedef struct _global {
 
 void option_dir(Args *args, ArgValue value)
 {
-  Global *env = args->base;
+  Global *env = args->env;
   env->directory = value.as_charptr ? value.as_charptr : ".";
 }
 
@@ -29,13 +29,13 @@ void option_new(Args *args, ArgValue value)
 
 void option_lib(Args *args, ArgValue value)
 {
-  Global *env  = args->base;
+  Global *env  = args->env;
   env->library = value.as_integer;
 }
 
 void option_roots(Args *args, ArgValue value)
 {
-  Global *env = args->base;
+  Global *env = args->env;
   
   int   list_size = 0;
   char *list      = (char*)value.as_charptr;
@@ -69,7 +69,7 @@ void option_remove(Args *args, ArgValue value)
 
 void option_args(Args *args, ArgValue value)
 {
-  Global *env = args->base;
+  Global *env = args->env;
   env->args = value.as_charptr;
 }
 
@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
     NEW (String) ("build"),
     NULL);
 
-  if (ObjectArray_In(knownCommands, command, (Comparer)String_Cmp))
+  if (ObjectArray_ContainsKey(knownCommands, command))
   {
     String *cmdParams = String_Concat(NEW (String)("bin/"), NEW (String)(command));
     Array  *arguments = Args_List(args);
