@@ -70,7 +70,7 @@ bin:
 
 .SECONDEXPANSION:
 obj/%.o: $$(call FINDSRC,$$(*F),$$(SOURCES)) | obj .cut/$(DEPENDS) 
-	$(CMP) $(CFLAGS) $(LIBRARIES) $(INCLUDES) $(patsubst %, -I%, $(shell $(BOOTSTRAP) --include $(INCLUDE_FROM) $(notdir $<))) -c $< -o $@
+	$(CMP) $(CFLAGS) $(INCLUDES) $(patsubst %, -I%, $(shell $(BOOTSTRAP) --include $(INCLUDE_FROM) $(notdir $<))) $(LIBRARIES) -c $< -o $@
 
 depends:
 	rm -rf .cut
@@ -102,7 +102,7 @@ bin/$(NAME).test: library | bin
 	$(eval INC:=  $(patsubst %, -I%/inc, $(shell $(BOOTSTRAP) --library)))
 	$(eval FILE:= $(filter-out -l:, $(foreach path, $(LIBS), -l:$(notdir $(wildcard $(path)/*)))))
 
-	$(CMP) -g tst/main$(EXT_SRC) $(CFLAGS) $(LIBRARIES) $(INCLUDES) $(INC) -Llib -l$(NAME) $(LINK) $(FILE) $(RPATH) -o bin/$(NAME).test 
+	$(CMP) -g tst/main$(EXT_SRC) $(CFLAGS) $(INCLUDES) $(INC) -Llib -l$(NAME) $(LINK) $(FILE) $(LIBRARIES) $(RPATH) -o bin/$(NAME).test 
 
 reset:
 	rm -f bin/$(NAME).test

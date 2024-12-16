@@ -26,20 +26,20 @@ void build_cache(CacheFile *file, const char *directory, int homelen, Env *env)
       if (di->current.name[0] != '.') {
         char directory[2048];
 
-        dfullname(di, directory, sizeof(directory));
+        dfullname(di, sizeof(directory), directory);
         build_cache(file, directory, homelen, env);
       }
     } else {
       char ext[8];
 
-      fileext(di->current.name, ext, sizeof(ext));
+      fileext(di->current.name, sizeof(ext), ext);
 
       if ((env->source && (!strcmp(ext, ".c") || !strcmp(ext, ".cpp")))
       || (!env->source && (!strcmp(ext, ".h") || !strcmp(ext, ".hpp")))) {
         char package[128];
         char filename[2048];
 
-        dfullname(di, filename, sizeof(filename));
+        dfullname(di, sizeof(filename), filename);
         sprintf(package, "%s", di->path + homelen);
 
         for (int i = 0; package[i]; i++) {

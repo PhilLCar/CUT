@@ -112,15 +112,14 @@ int main(int argc, char *argv[])
   CHECK_MEMORY
 
   Args        *args          = NEW (Args) (argc, argv, &env);
-  ObjectArray *knownCommands = NEW (ObjectArray)(TYPEOF (String));
   const char  *command       = Args_Name(args, "command").as_charptr;
-
-  ObjectArray_Fill(knownCommands,
+  ObjectArray *knownCommands = ObjectArray_Fill(NEW (ObjectArray)(TYPEOF(String)),
     NEW (String) ("todo"),
     NEW (String) ("cache"),
     NEW (String) ("depends"),
     NEW (String) ("build"),
-    NULL);
+    NULL
+  );
 
   if (ObjectArray_ContainsKey(knownCommands, command))
   {

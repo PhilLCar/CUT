@@ -47,7 +47,7 @@ String *find(const char *base, const char *destination)
 
   // TODO: Optimize by going one layer at-a-time instead of recursively
   for (DirectoryIterator *di = dopen(base); di; dnext(&di)) {
-    dfullname(di, path, sizeof(path));
+    dfullname(di, sizeof(path), path);
 
     if (!strcmp(destination, di->current.name))
     {
@@ -93,7 +93,7 @@ void get_includes(CacheFile *cache, Set *packages, Set *includes, List *travelle
 
             if (filename && packagename) {
               if (!List_Contains(travelled, filename)) {
-                List   *step        = List_Push(travelled, filename, 1);
+                List   *step        = List_Push(travelled, filename);
                 String *includename = Path_Folder(filename->base);
 
                 Set_Add(packages, packagename);
@@ -103,6 +103,7 @@ void get_includes(CacheFile *cache, Set *packages, Set *includes, List *travelle
 
                 List_Pop(step, NULL);
               } else {
+                DELETE (filename);
                 DELETE (packagename);
               }
             } else {
@@ -126,13 +127,13 @@ void get_files(MapFile *depends, CacheFile *cache, Set *packages, const char *fo
       if (di->current.name[0] != '.') {
         char directory[2048];
 
-        dfullname(di, directory, sizeof(directory));
+        dfullname(di, sizeof(directory), directory);
         get_files(depends, cache, packages, directory, env);
       }
     } else {
       char ext[8];
 
-      fileext(di->current.name, ext, sizeof(ext));
+      fileext(di->current.name, sizeof(ext), ext);
 
       if ((env->source && (!strcmp(ext, ".c") || !strcmp(ext, ".cpp")))
       || (!env->source && (!strcmp(ext, ".h") || !strcmp(ext, ".hpp")))) {
@@ -142,14 +143,14 @@ void get_files(MapFile *depends, CacheFile *cache, Set *packages, const char *fo
 
         // TODO: compare to cache timestamp
 
-        dfullname(di, filename, sizeof(filename));
+        dfullname(di, sizeof(filename), filename);
 
         includes = IFNULL(
           Map_ValueAtKey((Map*)depends, di->current.name),
           Map_Set((Map*)depends,
                     NEW (String) (di->current.name),
                     NEW (Set) (TYPEOF (String))
-                  )->second.object);
+                  )->second);
         
         get_includes(cache, packages, includes, travelled, filename, env);
 
@@ -179,12 +180,16 @@ void get_dependencies(String *package, Set *dependencies) {
 
 void order_packages(Array *packages)
 {
-  // for (int i = 0; i < packages->size; i++) {
-  //   String *package = Array_At(packages, i);
+  for (int i = 0; i < packages->size; i++) {
+    String *package      = Array_At(packages, i);
+    Set    *dependencies = NEW (Set) (TYPEOF (String));
 
-  //   Set *dependencies = NEW (Set) (TYPEOF (String));
-  // }
+    get_dependencies(package, dependencies);
 
+    for (int j = 0; j < ((Array*)dependencies)->size; j++) {
+      // Str
+    }
+  }
 }
 
 int main(int argc, char *argv[])
@@ -211,7 +216,7 @@ int main(int argc, char *argv[])
       Map_Set((Map*)depends,
                 NEW (String) ("packages"),
                 NEW (Set) (TYPEOF (String))
-              )->second.object);
+              )->second);
 
   get_files(depends, cache, packages, workdir, &env);
 

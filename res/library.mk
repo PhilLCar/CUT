@@ -12,9 +12,7 @@ INCLUDE_FROM  = headers
 
 # Default to C
 ifeq "$(LANG)" "C++"
-	NAME   := $(NAME)$(MAJOR)++
-else
-	NAME   := $(NAME)$(MAJOR)
+	NAME := $(NAME)++
 endif
 
 #include common commands

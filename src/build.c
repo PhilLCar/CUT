@@ -22,8 +22,8 @@ void get_files(const char *folder, const char *extension, const char *filter, Ob
     char fullname[2048];
     char ext[8];
 
-    dfullname(di, fullname, sizeof(fullname));
-    fileext(di->current.name, ext, sizeof(ext));
+    dfullname(di, sizeof(fullname), fullname);
+    fileext(di->current.name, sizeof(ext), ext);
 
     if (filter && di->current.type == DIRTYPE_DIRECTORY) {
       if (!strcmp(filter, di->current.name)) {
@@ -56,7 +56,7 @@ String *get_lib(String *folder)
 
 Map *get_libs(Array *packages)
 {
-  Map *libraries = NEW (Map) (TYPEOF (String), TYPEOF (String), (Comparer)String_Compare);
+  Map *libraries = NEW (Map) (TYPEOF (String));
 
   for (int i = 0; i < packages->size; i++)
   {
@@ -115,8 +115,8 @@ String *compile_obj(String *init, ObjectArray *includes, Array *libraries, Strin
   for (int i = 0; i < libraries->size; i++) {
     Pair   *pair    = Array_At(libraries, i);
 
-    String_Concat(init, String_Format(" -L%O", pair->first.object));
-    String_Concat(init, String_Format(" -l:%O", pair->second.object));
+    String_Concat(init, String_Format(" -L%O", pair->first));
+    String_Concat(init, String_Format(" -l:%O", pair->second));
   }
 
   String_Concat(init, String_Format(" -o %O", output));
@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
 
     ObjectArray_Fill(tmp, NEW (String) ("this"), NEW (String)("test"), NULL);
 
-    print("%Of\n", object(String_Copy(command), Map_ValueAt(depends, n->base), (Array*)libraries, tmp, n));
+    print("%Of\n", compile_bin(String_Copy(command), Map_ValueAt(depends, n->base), (Array*)libraries, tmp, n));
 
     DELETE (tmp);
     DELETE (n);

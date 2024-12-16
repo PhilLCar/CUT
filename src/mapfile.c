@@ -6,7 +6,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 MapFile *_(Construct)(const char *filename, AccessModes mode)
 {  
-  if (Map_Construct(BASE(0), TYPEOF (String), TYPEOF (Set))) {
+  if (Map_Construct(BASE(0), TYPEOF (String))) {
     if (filename) {
       this->filename = malloc(strlen(filename) + 1);
       this->mode     = mode;
@@ -30,7 +30,7 @@ MapFile *_(Construct)(const char *filename, AccessModes mode)
             // Remove the ':'
             String_SubString(line, 0, -1);
 
-            current = Map_Set(BASE(0), line, NEW (Set)(TYPEOF (String)))->second.object;
+            current = Map_Set(BASE(0), line, NEW (Set)(TYPEOF (String)))->second;
           }
         }
 
@@ -54,8 +54,8 @@ void _(Destruct)()
       if (stream) {
         for (int i = 0; i < BASE(2)->size; i++) {
           Pair   *pair = Array_At(BASE(2), i);
-          String *name = pair->first.object;
-          Array  *list = pair->second.object;
+          String *name = pair->first;
+          Array  *list = pair->second;
 
           CharStream_PutStr(stream, name->base);
           CharStream_PutLn(stream, ":");
