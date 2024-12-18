@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
   if (ObjectArray_ContainsKey(knownCommands, command))
   {
     String *cmdParams = String_Concat(NEW (String)("bin/"), NEW (String)(command));
-    Array  *arguments = Args_List(args);
+    Array  *arguments = Args_Params(args);
 
     for (int i = 0; i < arguments->size; i++) {
       String_Append(cmdParams, ' ');
