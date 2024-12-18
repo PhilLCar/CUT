@@ -1,5 +1,4 @@
 #include <mapfile.h>
-#include <set.h>
 
 #define TYPENAME MapFile
 
@@ -52,8 +51,8 @@ void _(Destruct)()
       CharStream *stream = (CharStream*) NEW (FileStream) (fopen(this->filename, "w+"));
 
       if (stream) {
-        for (int i = 0; i < BASE(2)->size; i++) {
-          Pair   *pair = Array_At(BASE(2), i);
+        for (List *l = (List*)this; !List_Empty(l); l = List_Next(l)) {
+          Pair   *pair = List_Head(l);
           String *name = pair->first;
           Array  *list = pair->second;
 

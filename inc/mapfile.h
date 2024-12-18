@@ -2,11 +2,13 @@
 #define MAPFILE_H
 
 // CUT
+#include <diagnostic.h>
 #include <oop.h>
 #include <map.h>
 #include <str.h>
 #include <filestream.h>
 #include <charstream.h>
+#include <set.h>
 
 #define TYPENAME MapFile
 

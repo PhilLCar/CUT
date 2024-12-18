@@ -3,6 +3,7 @@
 
 // CUT
 #include <args.h>
+#include <objectarray.h>
 #include <directory.h>
 #include <filestream.h>
 #include <diagnostic.h>
