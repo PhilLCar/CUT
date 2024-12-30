@@ -2,12 +2,15 @@
 #include <directory.h>
 #include <exception.h>
 #include <cachefile.h>
+#include <graph.h>
 #include <str.h>
 #include <path.h>
 #include <args.h>
+#include <rootfile.h>
 
 typedef struct {
-  int source;
+  const char *home;
+  int         source;
 } Env;
 
 void option_source(Args *args, ArgValue value)
@@ -18,6 +21,86 @@ void option_source(Args *args, ArgValue value)
 OPTIONS(
   { "source", 's', "Finds dependencies in sources instead of headers", ARG_TYPE_BOOLEAN, option_source }
 );
+
+String* find(const char *filename, Env *env, String **package)
+{
+  String *file = NULL;
+
+  for (DirectoryIterator *di = dopen(env->home); di; dnext(&di)) {
+    if (di->current.type == DIRTYPE_DIRECTORY) {
+      char      pkgpath[PATH_MAX];
+      String   *rootpath;
+      Array    *roots;
+
+      dfullname(di, sizeof(pkgpath), pkgpath);
+
+      rootpath = Path_Combine(pkgpath, ".cut/roots");
+      roots    = (Array*)NEW (RootFile) (roots->base, ACCESS_READ);
+
+      for (int i = 0; i < roots->size; i++) {
+        String *root = Array_At(roots, i);
+        String *inc  = String_Cat(Path_Combine(pkgpath, root->base), "/inc");
+
+        for (DirectoryIterator *dj = dopen(inc->base); dj; dnext(&dj)) {
+          if (dj ->current.type == DIRTYPE_FILE && !strcmp(dj->current.name, filename)) {
+            char filepath[PATH_MAX];
+
+            dfullname(dj, sizeof(filepath), filepath);
+
+            *package = NEW (String) (pkgpath);
+            file     = NEW (String) (filepath);
+          }
+        }
+
+        DELETE (inc);
+
+        if (file) {
+          break;
+        }
+      }
+
+      DELETE (roots);
+      DELETE (rootpath);
+
+      if (file) {
+        dclose(&di);
+        break;
+      }
+    }
+  }
+
+  return file;
+}
+
+void get_includes(Graph *includes, List *travelled, const char *filename, Env *env)
+{
+  CharStream *stream = (CharStream*)NEW (FileStream)(fopen(filename, "r"));
+
+  while (!stream->base.eos) {
+    String *line = CharStream_GetLine(stream);
+
+    if (line) {
+      if (String_StartsWith(line, "#include")) {
+        String_SubString(line, 8, 0);
+        String_Trim(line);
+
+        if (String_StartsWith(line, "<")) {
+          int end = line->length - String_Cnt(line, ">");
+
+          String_SubString(line, 1, -end);
+
+          if (String_StartsWith(line, env->home)) {
+            //if (Graph_Key())
+          }
+        }
+      }
+    }
+
+    DELETE (line);
+  }
+
+  DELETE (stream);
+}
 
 void build_cache(CacheFile *file, const char *directory, int homelen, Env *env)
 {
@@ -57,7 +140,7 @@ void build_cache(CacheFile *file, const char *directory, int homelen, Env *env)
 
 int main(int argc, char *argv[])
 {
-  Env   env  = { 0 };
+  Env   env  = { "", 0 };
   Args *args = NEW (Args) (argc, argv, &env);
 
   CHECK_MEMORY
@@ -65,13 +148,13 @@ int main(int argc, char *argv[])
   String *home;
   String *cachefile;
 
-  const char *homevar = getenv("CUT_HOME");
+  env.home = getenv("CUT_HOME");
 
-  if (!homevar || !homevar[0]) {
+  if (!env.home || !env.home[0]) {
     THROW(NEW (Exception)("No CUT_HOME environment variable defined... exiting!"));
   } else {
-    home      = NEW (String)(homevar);
-    cachefile = Path_Combine(homevar, "CUT/.cut/.cache");
+    home      = NEW (String)(env.home);
+    cachefile = Path_Combine(env.home, "CUT/.cut/.cache");
   }
 
   CacheFile *cache = NEW (CacheFile)(cachefile->base, ACCESS_WRITE);
