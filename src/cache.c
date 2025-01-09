@@ -7,6 +7,8 @@
 #include <path.h>
 #include <args.h>
 #include <rootfile.h>
+#include <graphfile.h>
+#include <mapset.h>
 
 typedef struct {
   const char *home;
@@ -22,12 +24,10 @@ OPTIONS(
   { "source", 's', "Finds dependencies in sources instead of headers", ARG_TYPE_BOOLEAN, option_source }
 );
 
-String* find(const char *filename, Env *env, String **package)
+void build_cache(Env *env, CacheFile *packages, CacheFile *files, CacheFile *cache)
 {
-  String *file = NULL;
-
   for (DirectoryIterator *di = dopen(env->home); di; dnext(&di)) {
-    if (di->current.type == DIRTYPE_DIRECTORY) {
+    if (di->current.type == DIRTYPE_DIRECTORY && di->current.name[0] != '.') {
       char      pkgpath[PATH_MAX];
       String   *rootpath;
       Array    *roots;
@@ -35,105 +35,112 @@ String* find(const char *filename, Env *env, String **package)
       dfullname(di, sizeof(pkgpath), pkgpath);
 
       rootpath = Path_Combine(pkgpath, ".cut/roots");
-      roots    = (Array*)NEW (RootFile) (roots->base, ACCESS_READ);
 
-      for (int i = 0; i < roots->size; i++) {
-        String *root = Array_At(roots, i);
-        String *inc  = String_Cat(Path_Combine(pkgpath, root->base), "/inc");
+      if (fileexists(rootpath->base, FILE_EXISTS)) {
+        // We're in a CUT project
+        roots = (Array*)NEW (RootFile) (rootpath->base, ACCESS_READ);
 
-        for (DirectoryIterator *dj = dopen(inc->base); dj; dnext(&dj)) {
-          if (dj ->current.type == DIRTYPE_FILE && !strcmp(dj->current.name, filename)) {
-            char filepath[PATH_MAX];
+        MapSet_Set(&packages->base, NEW (String) (di->current.name), NEW (String) (pkgpath));
 
-            dfullname(dj, sizeof(filepath), filepath);
+        for (int i = 0; i < roots->size; i++) {
+          String *root = Array_At(roots, i);
 
-            *package = NEW (String) (pkgpath);
-            file     = NEW (String) (filepath);
+          for (int j = 0; j < 1; j++)
+          {
+            String *folder = String_Cat(Path_Combine(pkgpath, root->base), j == 0 ? "/inc" : "/src");
+
+            for (DirectoryIterator *dj = dopen(folder->base); dj; dnext(&dj)) {
+              if (dj->current.type == DIRTYPE_FILE) {
+                char filepath[PATH_MAX];
+
+                dfullname(dj, sizeof(filepath), filepath);
+
+                MapSet_Set(&files->base, NEW (String) (dj->current.name), NEW (String) (filepath));
+                MapSet_Set(&cache->base, NEW (String) (di->current.name), NEW (CacheRecord) (NEW (String) (dj->current.name), statfile(dj->current.name)));
+              }
+            }
+
+            DELETE (folder);
           }
         }
 
-        DELETE (inc);
-
-        if (file) {
-          break;
-        }
+        DELETE (roots);
       }
 
-      DELETE (roots);
       DELETE (rootpath);
-
-      if (file) {
-        dclose(&di);
-        break;
-      }
     }
   }
-
-  return file;
 }
 
-void get_includes(Graph *includes, List *travelled, const char *filename, Env *env)
+void build_graph(Env *env, CacheFile *packages, CacheFile *files, CacheFile *cache, GraphFile *dependencies)
 {
-  CharStream *stream = (CharStream*)NEW (FileStream)(fopen(filename, "r"));
+  for (DirectoryIterator *di = dopen(env->home); di; dnext(&di)) {
+    if (di->current.type == DIRTYPE_DIRECTORY && di->current.name[0] != '.') {
+      char      pkgpath[PATH_MAX];
+      String   *rootpath;
+      Array    *roots;
 
-  while (!stream->base.eos) {
-    String *line = CharStream_GetLine(stream);
+      dfullname(di, sizeof(pkgpath), pkgpath);
 
-    if (line) {
-      if (String_StartsWith(line, "#include")) {
-        String_SubString(line, 8, 0);
-        String_Trim(line);
+      rootpath = Path_Combine(pkgpath, ".cut/roots");
 
-        if (String_StartsWith(line, "<")) {
-          int end = line->length - String_Cnt(line, ">");
+      if (fileexists(rootpath->base, FILE_EXISTS)) {
+        // We're in a CUT project
+        roots = (Array*)NEW (RootFile) (rootpath->base, ACCESS_READ);
 
-          String_SubString(line, 1, -end);
+        MapSet_Set(&packages->base, NEW (String) (di->current.name), NEW (String) (pkgpath));
 
-          if (String_StartsWith(line, env->home)) {
-            //if (Graph_Key())
+        for (int i = 0; i < roots->size; i++) {
+          String *root = Array_At(roots, i);
+
+          for (int j = 0; j < 1; j++)
+          {
+            String *folder = String_Cat(Path_Combine(pkgpath, root->base), j == 0 ? "/inc" : "/src");
+
+            for (DirectoryIterator *dj = dopen(folder->base); dj; dnext(&dj)) {
+              if (dj->current.type == DIRTYPE_FILE) {
+                char filepath[PATH_MAX];
+
+                dfullname(dj, sizeof(filepath), filepath);
+                
+                CharStream *stream = (CharStream*)NEW (FileStream)(fopen(filepath, "r"));
+
+                while (!stream->base.eos) {
+                  String *line = CharStream_GetLine(stream);
+
+                  if (line) {
+                    if (String_StartsWith(line, "#include")) {
+                      String_SubString(line, 8, 0);
+                      String_Trim(line);
+
+                      if (String_StartsWith(line, "<")) {
+                        int end = line->length - String_Cnt(line, ">");
+
+                        String_SubString(line, 1, -end);
+
+                        Graph_AddKey(dependencies, dj->current.name);
+                        Graph_AddKey(dependencies, line->base);
+
+                        Graph_SetKey(dependencies, dj->current.name, line->base, 0);
+                      }
+                    }
+                  }
+
+                  DELETE (line);
+                }
+
+                DELETE (stream);
+              }
+            }
+
+            DELETE (folder);
           }
         }
+
+        DELETE (roots);
       }
-    }
 
-    DELETE (line);
-  }
-
-  DELETE (stream);
-}
-
-void build_cache(CacheFile *file, const char *directory, int homelen, Env *env)
-{
-  for (DirectoryIterator *di = dopen(directory); di; dnext(&di)) {
-    if (di->current.type == DIRTYPE_DIRECTORY) {
-      if (di->current.name[0] != '.') {
-        char directory[2048];
-
-        dfullname(di, sizeof(directory), directory);
-        build_cache(file, directory, homelen, env);
-      }
-    } else {
-      char ext[8];
-
-      fileext(di->current.name, sizeof(ext), ext);
-
-      if ((env->source && (!strcmp(ext, ".c") || !strcmp(ext, ".cpp")))
-      || (!env->source && (!strcmp(ext, ".h") || !strcmp(ext, ".hpp")))) {
-        char package[128];
-        char filename[2048];
-
-        dfullname(di, sizeof(filename), filename);
-        sprintf(package, "%s", di->path + homelen);
-
-        for (int i = 0; package[i]; i++) {
-          if (package[i] == PATH_MARKER) {
-            package[i] = 0;
-            break;
-          }
-        }
-
-        ObjectArray_Push(&file->base, CacheRecord_FromValues(di->current.name, package, statfile(filename)));
-      }
+      DELETE (rootpath);
     }
   }
 }
@@ -146,7 +153,10 @@ int main(int argc, char *argv[])
   CHECK_MEMORY
 
   String *home;
-  String *cachefile;
+  String *cachepath;
+  String *filepath;
+  String *pkgpath;
+  String *graphpath;
 
   env.home = getenv("CUT_HOME");
 
@@ -154,15 +164,27 @@ int main(int argc, char *argv[])
     THROW(NEW (Exception)("No CUT_HOME environment variable defined... exiting!"));
   } else {
     home      = NEW (String)(env.home);
-    cachefile = Path_Combine(env.home, "CUT/.cut/.cache");
+    cachepath = Path_Combine(env.home, "CUT/.cut/.cache");
+    filepath  = Path_Combine(env.home, "CUT/.cut/files.cache");
+    pkgpath   = Path_Combine(env.home, "CUT/.cut/packages.cache");
+    graphpath = Path_Combine(env.home, "CUT/.cut/dependencies.json");
   }
 
-  CacheFile *cache = NEW (CacheFile)(cachefile->base, ACCESS_WRITE);
+  CacheFile *cache    = NEW (CacheFile)(cachepath->base, ACCESS_WRITE);
+  CacheFile *files    = NEW (CacheFile)(filepath->base,  ACCESS_WRITE);
+  CacheFile *packages = NEW (CacheFile)(pkgpath->base,   ACCESS_WRITE);
+  GraphFile *depends  = NEW (GraphFile)(graphpath->base, ACCESS_WRITE);
 
-  build_cache(cache, home->base, home->length, &env);
+  build_cache(&env, packages, files, cache);
+  build_graph(&env, packages, files, cache, depends);
 
+  DELETE (packages);
+  DELETE (files);
   DELETE (cache);
-  DELETE (cachefile);
+  DELETE (graphpath);
+  DELETE (pkgpath);
+  DELETE (filepath);
+  DELETE (cachepath);
   DELETE (home);
   DELETE (args);
 

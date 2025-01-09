@@ -6,15 +6,15 @@
 #include <cacherecord.h>
 #include <filestream.h>
 #include <charstream.h>
+#include <mapset.h>
+#include <collection.str.h>
 
 #define TYPENAME CacheFile
 
-OBJECT (const char *filename, AccessModes mode) INHERIT (ObjectArray)
+OBJECT (const char *filename, AccessModes mode) INHERIT (MapSet)
   const char  *filename;
   AccessModes  mode;
 END_OBJECT(".cache", ACCESS_READ);
-
-long statfile(const char *filename);
 
 #undef TYPENAME
 

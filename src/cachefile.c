@@ -2,9 +2,35 @@
 
 #define TYPENAME CacheFile
 
+void _(FromLine)(String *line)
+{
+  ObjectArray *record = String_Split(line, " ");
+
+  String *key, *value, *timestamp;
+
+  for (int i = 0; i < record->base.size; i++) {
+    if (String_Eq(Array_At((Array*)record, i), "")) {
+      ObjectArray_RemoveAt(record, i--, 0);
+    }
+  }
+
+  if (record->base.size != 3) {
+    THROW(NEW (Exception)("Bad format!"));
+  }
+
+  key       = ObjectArray_Remove(record, 1);
+  value     = ObjectArray_Remove(record, 1);
+  timestamp = ObjectArray_Remove(record, 1);
+
+  MapSet_Set(BASE(0), key, NEW (CacheRecord) (value, atol(timestamp->base)));
+
+  DELETE (timestamp);
+  DELETE (record);
+}
+
 CacheFile *_(Construct)(const char *filename, AccessModes mode)
 {
-  if (ObjectArray_Construct(BASE(0), TYPEOF (CacheRecord))) {
+  if (MapSet_Construct(BASE(0), TYPEOF (CacheRecord))) {
     if (filename) {
       this->filename = malloc(strlen(filename) + 1);
       this->mode     = mode;
@@ -13,15 +39,13 @@ CacheFile *_(Construct)(const char *filename, AccessModes mode)
     }
 
     if (mode & ACCESS_READ) {
-      CharStream  *stream = (CharStream*)NEW (FileStream)(fopen(filename, "r"));
+      CharStream *stream = (CharStream*)NEW (FileStream)(fopen(filename, "r"));
 
       if (stream) {
         while (!stream->base.eos) {
           String *line = CharStream_GetLine(stream);
 
-          if (line && line->length) {
-            ObjectArray_Push(BASE(0), NEW (CacheRecord)(line));
-          }
+          if (line) CacheFile_FromLine(this, line);
         }
 
         DELETE (stream);
@@ -38,13 +62,15 @@ void _(Destruct)()
 {
   if (this) {
     if (this->mode & ACCESS_WRITE) {
-      CharStream *stream = (CharStream*) NEW (FileStream) (fopen(this->filename, "w+"));
+      CharStream *stream = (CharStream*) FileStream_Open(this->filename, ACCESS_WRITE | ACCESS_CREATE);
 
       if (stream) {
-        for (int i = 0; i < BASE(1)->size; i++) {
-          CacheRecord *record = ObjectArray_At(BASE(0), i);
-
-          CharStream_PutLine(stream, record);
+        for (int i = 0; i < BASE(3)->size; i++) {
+          KeyVal      *keyval = ObjectArray_At(BASE(2), i);
+          String      *key    = keyval->base.first;
+          CacheRecord *record = keyval->base.second;
+          
+          String_Format("%-32O %-31O %-15ld", key, record->value, record->timestamp);
         }
 
         DELETE (stream);
@@ -58,26 +84,8 @@ void _(Destruct)()
       this->filename = NULL;
     }
     
-    ObjectArray_Destruct(BASE(0));
+    MapSet_Destruct(BASE(0));
   }
-}
-
-long statfile(const char *filename)
-{
-  char  buffer[2048];
-  FILE *result;
-
-  sprintf(buffer, "stat -c %%Y %s", filename);
-
-  result = popen(buffer, "r");
-
-  memset(buffer, 0, sizeof(buffer));
-
-  for (int c = fgetc(result), i = 0; c != EOF; c = fgetc(result), i++) buffer[i] = c;
-
-  pclose(result);
-
-  return atol(buffer);
 }
 
 #undef TYPENAME

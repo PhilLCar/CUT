@@ -5,22 +5,15 @@
 #include <diagnostic.h>
 #include <oop.h>
 #include <str.h>
-#include <map.h>
-#include <collection.str.h>
 
 #define TYPENAME CacheRecord
 
-OBJECT (String *line) NOBASE
-  String *key;
+OBJECT (String *value, long timestamp) NOBASE
   String *value;
   long    timestamp;
-END_OBJECT(NULL);
+END_OBJECT(NULL, 0);
 
-CacheRecord *STATIC (FromValues)(const char *filename, const char *packagename, long lastmod);
-
-String *_(ToString)()                   VIRTUAL (ToString);
-int     _(Comparer)(CacheRecord *other) VIRTUAL (Comparer);
-int     _(KeyComparer)(String *key)     VIRTUAL (KeyComparer);
+long statfile(const char *filename);
 
 #undef TYPENAME
 
