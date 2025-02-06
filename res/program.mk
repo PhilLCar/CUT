@@ -19,7 +19,7 @@ bin/$(NAME): obj/main.o | lib/lib$(NAME).a bin
 	$(eval INC:=  $(patsubst %, -I%/inc, $(shell $(BOOTSTRAP) --library)))
 	$(eval FILE:= $(filter-out -l:, $(foreach path, $(LIBS), -l:$(notdir $(wildcard $(path)/*)))))
 
-	$(CMP) -g obj/main.o $(CFLAGS) $(LIBRARIES) $(INCLUDES) $(INC) $(LINK) $(FILE) $(FILE) -o bin/$(NAME) 
+	$(CMP) -g obj/main.o $(CFLAGS) $(LIBRARIES) $(INCLUDES) $(INC) $(LINK) $(FILE) $(FILE) $(LIBRARIES) -o bin/$(NAME) 
 
 bin/%: obj/%.o | lib/lib$(NAME).a bin
 	$(eval LIBS:= $(patsubst %, %/lib, $(shell $(BOOTSTRAP) --library)))
@@ -27,6 +27,6 @@ bin/%: obj/%.o | lib/lib$(NAME).a bin
 	$(eval INC:=  $(patsubst %, -I%/inc, $(shell $(BOOTSTRAP) --library)))
 	$(eval FILE:= $(filter-out -l:, $(foreach path, $(LIBS), -l:$(notdir $(wildcard $(path)/*)))))
 
-	$(CMP) -g $< $(CFLAGS) $(LIBRARIES) $(INCLUDES) $(INC) $(LINK) $(FILE) $(FILE) -o $@
+	$(CMP) -g $< $(CFLAGS) $(LIBRARIES) $(INCLUDES) $(INC) $(LINK) $(FILE) $(FILE) $(LIBRARIES) -o $@
 
 program: bin/$(NAME)

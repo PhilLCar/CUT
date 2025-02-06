@@ -10,7 +10,7 @@ NAME = cut
 PROJECT_ROOTS =
 
 # Additionnal libraries (ex: -pthread, -lmath, etc)
-LIBRARIES = 
+LIBRARIES = -lm
 
 # Additionnal flags for the compiler
 FLAGS = -DMEMORY_WATCH

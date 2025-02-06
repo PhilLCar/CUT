@@ -30,7 +30,6 @@ void build_cache(Env *env, CacheFile *packages, CacheFile *files, CacheFile *cac
     if (di->current.type == DIRTYPE_DIRECTORY && di->current.name[0] != '.') {
       char      pkgpath[PATH_MAX];
       String   *rootpath;
-      Array    *roots;
 
       dfullname(di, sizeof(pkgpath), pkgpath);
 
@@ -38,9 +37,9 @@ void build_cache(Env *env, CacheFile *packages, CacheFile *files, CacheFile *cac
 
       if (fileexists(rootpath->base, FILE_EXISTS)) {
         // We're in a CUT project
-        roots = (Array*)NEW (RootFile) (rootpath->base, ACCESS_READ);
-
-        MapSet_Set(&packages->base, NEW (String) (di->current.name), NEW (String) (pkgpath));
+        CacheRecord *package = CacheFile_Set(packages, NEW (String) (di->current.name), NEW (String) (pkgpath), 0);
+        long         pkgtime = 0;
+        Array       *roots   = (Array*)NEW (RootFile) (rootpath->base, ACCESS_READ);
 
         for (int i = 0; i < roots->size; i++) {
           String *root = Array_At(roots, i);
@@ -55,14 +54,20 @@ void build_cache(Env *env, CacheFile *packages, CacheFile *files, CacheFile *cac
 
                 dfullname(dj, sizeof(filepath), filepath);
 
-                MapSet_Set(&files->base, NEW (String) (dj->current.name), NEW (String) (filepath));
-                MapSet_Set(&cache->base, NEW (String) (di->current.name), NEW (CacheRecord) (NEW (String) (dj->current.name), statfile(dj->current.name)));
+                long timestamp = statfile(filepath);
+
+                if (timestamp > pkgtime) pkgtime = timestamp;
+
+                CacheFile_Set(files, NEW (String) (dj->current.name), NEW (String) (filepath),         timestamp);
+                CacheFile_Set(cache, NEW (String) (dj->current.name), NEW (String) (di->current.name), timestamp);
               }
             }
 
             DELETE (folder);
           }
         }
+
+        package->timestamp = pkgtime;
 
         DELETE (roots);
       }
@@ -88,7 +93,7 @@ void build_graph(Env *env, CacheFile *packages, CacheFile *files, CacheFile *cac
         // We're in a CUT project
         roots = (Array*)NEW (RootFile) (rootpath->base, ACCESS_READ);
 
-        MapSet_Set(&packages->base, NEW (String) (di->current.name), NEW (String) (pkgpath));
+        //MapSet_Set(&packages->base, NEW (String) (di->current.name), NEW (String) (pkgpath));
 
         for (int i = 0; i < roots->size; i++) {
           String *root = Array_At(roots, i);
@@ -118,10 +123,12 @@ void build_graph(Env *env, CacheFile *packages, CacheFile *files, CacheFile *cac
 
                         String_SubString(line, 1, -end);
 
-                        Graph_AddKey(dependencies, dj->current.name);
-                        Graph_AddKey(dependencies, line->base);
+                        if (CacheFile_Get(files, line)) {
+                          Graph_AddKey((Graph*)dependencies, dj->current.name);
+                          Graph_AddKey((Graph*)dependencies, line->base);
 
-                        Graph_SetKey(dependencies, dj->current.name, line->base, 0);
+                          Graph_SetKey((Graph*)dependencies, dj->current.name, line->base, 0);
+                        }
                       }
                     }
                   }
@@ -152,7 +159,6 @@ int main(int argc, char *argv[])
 
   CHECK_MEMORY
 
-  String *home;
   String *cachepath;
   String *filepath;
   String *pkgpath;
@@ -163,7 +169,6 @@ int main(int argc, char *argv[])
   if (!env.home || !env.home[0]) {
     THROW(NEW (Exception)("No CUT_HOME environment variable defined... exiting!"));
   } else {
-    home      = NEW (String)(env.home);
     cachepath = Path_Combine(env.home, "CUT/.cut/.cache");
     filepath  = Path_Combine(env.home, "CUT/.cut/files.cache");
     pkgpath   = Path_Combine(env.home, "CUT/.cut/packages.cache");
@@ -175,9 +180,14 @@ int main(int argc, char *argv[])
   CacheFile *packages = NEW (CacheFile)(pkgpath->base,   ACCESS_WRITE);
   GraphFile *depends  = NEW (GraphFile)(graphpath->base, ACCESS_WRITE);
 
+  CHECK_MEMORY
+
   build_cache(&env, packages, files, cache);
   build_graph(&env, packages, files, cache, depends);
 
+  CHECK_MEMORY
+
+  DELETE (depends);
   DELETE (packages);
   DELETE (files);
   DELETE (cache);
@@ -185,7 +195,6 @@ int main(int argc, char *argv[])
   DELETE (pkgpath);
   DELETE (filepath);
   DELETE (cachepath);
-  DELETE (home);
   DELETE (args);
 
   CHECK_MEMORY

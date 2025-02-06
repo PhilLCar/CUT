@@ -7,6 +7,7 @@
 #include <directory.h>
 #include <filestream.h>
 #include <diagnostic.h>
+#include <path.h>
 
 #define MAX_ROOTS 8
 
@@ -15,6 +16,7 @@ typedef struct _global {
   int         library;
   const char *roots[MAX_ROOTS];
   const char *args;
+  const char *home;
 } Global;
 
 void option_dir(Args *args, ArgValue value)
@@ -112,6 +114,12 @@ int main(int argc, char *argv[])
 
   CHECK_MEMORY
 
+  env.home = getenv("CUT_HOME");
+
+  if (!env.home || !env.home[0]) {
+    THROW(NEW (Exception)("No CUT_HOME environment variable defined... exiting!"));
+  }
+
   Args        *args          = NEW (Args) (argc, argv, &env);
   const char  *command       = Args_Name(args, "command").as_charptr;
   ObjectArray *knownCommands = ObjectArray_Fill(NEW (ObjectArray)(TYPEOF(String)),
@@ -119,12 +127,13 @@ int main(int argc, char *argv[])
     NEW (String) ("cache"),
     NEW (String) ("depends"),
     NEW (String) ("build"),
+    NEW (String) ("roots"),
     NULL
   );
 
   if (ObjectArray_ContainsKey(knownCommands, command))
   {
-    String *cmdParams = String_Concat(NEW (String)("bin/"), NEW (String)(command));
+    String *cmdParams = String_Concat(Path_Combine(env.home, "CUT/bin/"), NEW (String)(command));
     Array  *arguments = Args_Params(args);
 
     for (int i = 0; i < arguments->size; i++) {

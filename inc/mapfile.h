@@ -12,7 +12,7 @@
 
 #define TYPENAME MapFile
 
-OBJECT (const char *filename, AccessModes mode) INHERIT(Map)
+OBJECT (const char *filename, AccessModes mode) INHERIT (Map)
   const char  *filename;
   AccessModes  mode;
 END_OBJECT("", ACCESS_READ);

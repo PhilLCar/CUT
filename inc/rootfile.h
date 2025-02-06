@@ -8,7 +8,7 @@
 
 #define TYPENAME RootFile
 
-OBJECT (const char *filename, AccessModes mode) INHERIT(Set)
+OBJECT (const char *filename, AccessModes mode) INHERIT (Set)
   const char  *filename;
   AccessModes  mode;
 END_OBJECT("", ACCESS_READ);

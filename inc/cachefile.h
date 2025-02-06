@@ -16,6 +16,11 @@ OBJECT (const char *filename, AccessModes mode) INHERIT (MapSet)
   AccessModes  mode;
 END_OBJECT(".cache", ACCESS_READ);
 
+CacheRecord *_(Set)(String *key, String *value, long timestamp);
+
+CacheRecord *_(Get)(const String *key);
+CacheRecord *_(GetKey)(const char *key);
+
 #undef TYPENAME
 
 #endif

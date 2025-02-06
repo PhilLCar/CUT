@@ -22,7 +22,7 @@ void _(FromLine)(String *line)
   value     = ObjectArray_Remove(record, 1);
   timestamp = ObjectArray_Remove(record, 1);
 
-  MapSet_Set(BASE(0), key, NEW (CacheRecord) (value, atol(timestamp->base)));
+  CacheFile_Set(this, key, value, atol(timestamp->base));
 
   DELETE (timestamp);
   DELETE (record);
@@ -30,7 +30,7 @@ void _(FromLine)(String *line)
 
 CacheFile *_(Construct)(const char *filename, AccessModes mode)
 {
-  if (MapSet_Construct(BASE(0), TYPEOF (CacheRecord))) {
+  if (MapSet_Construct(BASE(0), TYPEOF (String))) {
     if (filename) {
       this->filename = malloc(strlen(filename) + 1);
       this->mode     = mode;
@@ -70,7 +70,11 @@ void _(Destruct)()
           String      *key    = keyval->base.first;
           CacheRecord *record = keyval->base.second;
           
-          String_Format("%-32O %-31O %-15ld", key, record->value, record->timestamp);
+          String *line = String_Format("%-32O %-63O %-15ld", key, record->value, record->timestamp);
+
+          CharStream_WriteLine(stream, line);
+
+          DELETE (line);
         }
 
         DELETE (stream);
@@ -86,6 +90,21 @@ void _(Destruct)()
     
     MapSet_Destruct(BASE(0));
   }
+}
+
+CacheRecord *_(Set)(String *key, String *value, long timestamp)
+{
+  return MapSet_Set(BASE(0), key, NEW (CacheRecord) (value, timestamp))->base.second;
+}
+
+CacheRecord *_(Get)(const String *key)
+{
+  return CacheFile_GetKey(this, key->base);
+}
+
+CacheRecord *_(GetKey)(const char *key)
+{
+  return MapSet_ValueAtKey(BASE(0), key);
 }
 
 #undef TYPENAME
