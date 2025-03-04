@@ -26,6 +26,7 @@ OPTIONS(
 
 void build_cache(Env *env, CacheFile *packages, CacheFile *files, CacheFile *cache)
 {
+  // TODO: standardize DirectoryIterator with Iterator
   for (DirectoryIterator *di = dopen(env->home); di; dnext(&di)) {
     if (di->current.type == DIRTYPE_DIRECTORY && di->current.name[0] != '.') {
       char      pkgpath[PATH_MAX];
@@ -39,14 +40,14 @@ void build_cache(Env *env, CacheFile *packages, CacheFile *files, CacheFile *cac
         // We're in a CUT project
         CacheRecord *package = CacheFile_Set(packages, NEW (String) (di->current.name), NEW (String) (pkgpath), 0);
         long         pkgtime = 0;
-        Array       *roots   = (Array*)NEW (RootFile) (rootpath->base, ACCESS_READ);
+        RootFile    *roots   = NEW (RootFile) (rootpath->base, ACCESS_READ);
 
-        for (int i = 0; i < roots->size; i++) {
-          String *root = Array_At(roots, i);
+        for (Iterator *it = NEW (Iterator) (roots); !done(it); next(it)) {
+          String *root = it->base;
 
-          for (int j = 0; j < 1; j++)
+          for (int i = 0; i < 1; i++)
           {
-            String *folder = String_Cat(Path_Combine(pkgpath, root->base), j == 0 ? "/inc" : "/src");
+            String *folder = String_Cat(Path_Combine(pkgpath, root->base), i == 0 ? "/inc" : "/src");
 
             for (DirectoryIterator *dj = dopen(folder->base); dj; dnext(&dj)) {
               if (dj->current.type == DIRTYPE_FILE) {
@@ -83,7 +84,7 @@ void build_graph(Env *env, CacheFile *packages, CacheFile *files, CacheFile *cac
     if (di->current.type == DIRTYPE_DIRECTORY && di->current.name[0] != '.') {
       char      pkgpath[PATH_MAX];
       String   *rootpath;
-      Array    *roots;
+      RootFile *roots;
 
       dfullname(di, sizeof(pkgpath), pkgpath);
 
@@ -91,52 +92,50 @@ void build_graph(Env *env, CacheFile *packages, CacheFile *files, CacheFile *cac
 
       if (fileexists(rootpath->base, FILE_EXISTS)) {
         // We're in a CUT project
-        roots = (Array*)NEW (RootFile) (rootpath->base, ACCESS_READ);
+        roots = NEW (RootFile) (rootpath->base, ACCESS_READ);
 
-        //MapSet_Set(&packages->base, NEW (String) (di->current.name), NEW (String) (pkgpath));
+        for (Iterator *it = NEW (Iterator) (roots); !done(it); next(it)) {
+          String *root = it->base;
 
-        for (int i = 0; i < roots->size; i++) {
-          String *root = Array_At(roots, i);
-
-          for (int j = 0; j < 1; j++)
+          for (int i = 0; i < 1; i++)
           {
-            String *folder = String_Cat(Path_Combine(pkgpath, root->base), j == 0 ? "/inc" : "/src");
+            String *folder = String_Cat(Path_Combine(pkgpath, root->base), i == 0 ? "/inc" : "/src");
 
             for (DirectoryIterator *dj = dopen(folder->base); dj; dnext(&dj)) {
               if (dj->current.type == DIRTYPE_FILE) {
-                char filepath[PATH_MAX];
+                CacheRecord *record = CacheFile_GetKey(files, di->current.name);
+      
+                if (record) {
+                  CharStream *stream = (CharStream*)NEW (FileStream)(fopen(record->value, "r"));
 
-                dfullname(dj, sizeof(filepath), filepath);
-                
-                CharStream *stream = (CharStream*)NEW (FileStream)(fopen(filepath, "r"));
+                  while (!stream->base.eos) {
+                    String *line = CharStream_GetLine(stream);
 
-                while (!stream->base.eos) {
-                  String *line = CharStream_GetLine(stream);
+                    if (line) {
+                      if (String_StartsWith(line, "#include")) {
+                        String_SubString(line, 8, 0);
+                        String_Trim(line);
 
-                  if (line) {
-                    if (String_StartsWith(line, "#include")) {
-                      String_SubString(line, 8, 0);
-                      String_Trim(line);
+                        if (String_StartsWith(line, "<")) {
+                          int end = line->length - String_Cnt(line, ">");
 
-                      if (String_StartsWith(line, "<")) {
-                        int end = line->length - String_Cnt(line, ">");
+                          String_SubString(line, 1, -end);
 
-                        String_SubString(line, 1, -end);
+                          if (CacheFile_Get(files, line)) {
+                            Graph_AddKey((Graph*)dependencies, dj->current.name);
+                            Graph_AddKey((Graph*)dependencies, line->base);
 
-                        if (CacheFile_Get(files, line)) {
-                          Graph_AddKey((Graph*)dependencies, dj->current.name);
-                          Graph_AddKey((Graph*)dependencies, line->base);
-
-                          Graph_SetKey((Graph*)dependencies, dj->current.name, line->base, 0);
+                            Graph_SetKey((Graph*)dependencies, dj->current.name, line->base, 0);
+                          }
                         }
                       }
                     }
+
+                    DELETE (line);
                   }
 
-                  DELETE (line);
+                  DELETE (stream);
                 }
-
-                DELETE (stream);
               }
             }
 
