@@ -1,9 +1,9 @@
-#include <mapfile.h>
+#include <dependsfile.h>
 
-#define TYPENAME MapFile
+#define TYPENAME DependsFile
 
 ////////////////////////////////////////////////////////////////////////////////
-MapFile *_(Construct)(const char *filename, AccessModes mode)
+DependsFile *_(Construct)(const char *filename, AccessModes mode)
 {  
   if (Map_Construct(BASE(0), TYPEOF (String))) {
     if (filename) {
@@ -29,7 +29,7 @@ MapFile *_(Construct)(const char *filename, AccessModes mode)
             // Remove the ':'
             String_SubString(line, 0, -1);
 
-            current = Map_Set(BASE(0), line, NEW (Set)(TYPEOF (String)))->second;
+            current = Map_Set(BASE(0), line, NEW (Set)(TYPEOF (Dependency)))->second;
           }
         }
 

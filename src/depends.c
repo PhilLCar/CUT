@@ -10,20 +10,21 @@
 #include <list.h>
 #include <cachefile.h>
 #include <args.h>
-#include <mapfile.h>
+#include <dependsfile.h>
 #include <path.h>
 #include <rootfile.h>
 #include <graphfile.h>
 
 typedef struct {
   const char *home;
+  const char *path;
+  const char *name;
+
   int         source;
   int         update;
-  struct {
-    const char *pkgpath;
-    long        pkgtime;
 
-  } globals;
+  Array *updated;
+  
 } Env;
 
 void option_source(Args *args, ArgValue value)
@@ -36,98 +37,59 @@ void option_update(Args *args, ArgValue value)
   ((Env*)args->env)->update = value.as_integer;
 }
 
+void param_workdir(Args *args, ArgValue value)
+{
+  Env *env = args->env;
+
+  // TODO: add system("pwd") to IO library for windows
+  const char *path =  strcmp(value.as_integer, ".") ? value.as_integer : system("pwd");
+  
+  int pathlen = strlen(path);
+  int namelen = filenamewopath(path, 0, NULL);
+
+  env->path = path;
+  env->name = env->path + (pathlen - namelen);
+}
+
 OPTIONS(
   { "source",            's', "Finds dependencies in sources instead of headers",    ARG_TYPE_BOOLEAN, option_source },
   { "update",            'u', "Only rebuild the outdated parts of the depends file", ARG_TYPE_BOOLEAN, option_update },
-  { "working-directory", '+', "Specifies the working directory",                     ARG_TYPE_CHARPTR, NULL          }
+  { "working-directory", '+', "Specifies the working directory",                     ARG_TYPE_CHARPTR, param_workdir }
 );
 
-int update_cache(Env *env, CacheFile *cache, CacheFile *files)
+void update_cache(Env *env, CacheFile *cache, CacheFile *packages, CacheFile *files)
 {
-  String   *rootpath = Path_Combine(env->globals.pkgpath, ".cut/roots");
+  String   *rootpath = Path_Combine(env->path, ".cut/roots");
   RootFile *roots    = NEW (RootFile) (rootpath->base, ACCESS_READ);
-  long      pkgtime  = 0;
 
-  for (Iterator *it = NEW (Iterator)(roots); !done(it); next(it)) {
-    String *root = it->base;
-
-    for (int i = 0; i < 1; i++)
-    {
-      String *folder = String_Cat(Path_Combine(env->globals.pkgpath, root->base), i == 0 ? "/inc" : "/src");
-
-      for (DirectoryIterator *dj = dopen(folder->base); dj; dnext(&dj)) {
-        if (dj->current.type == DIRTYPE_FILE) {
-          char filepath[PATH_MAX];
-
-          dfullname(dj, sizeof(filepath), filepath);
-
-          long timestamp = statfile(filepath);
-
-          if (timestamp > pkgtime) pkgtime = timestamp;
-
-          CacheFile_Set(files, NEW (String) (dj->current.name), NEW (String) (filepath),             timestamp);
-          CacheFile_Set(cache, NEW (String) (dj->current.name), NEW (String) (env->globals.pkgpath), timestamp);
-        }
-      }
-
-      DELETE (folder);
-    }
+  if (!CacheFile_GetKey(packages, env->name))
+  {
+    CacheFile_Set(packages, env->name, NEW (String) (env->path), 0);
   }
 
-  DELETE (roots);
-  DELETE (rootpath);
-
-  return pkgtime;
-}
-
-int update_graph(Env *env, CacheFile *cache, CacheFile *files, GraphFile *dependencies)
-{
-  String   *rootpath = Path_Combine(env->globals.pkgpath, ".cut/roots");
-  RootFile *roots    = NEW (RootFile) (rootpath->base, ACCESS_READ);
-
   for (Iterator *it = NEW (Iterator)(roots); !done(it); next(it)) {
     String *root = it->base;
 
-    for (int j = 0; j < 1; j++)
+    for (int i = 0; i <= env->source; i++)
     {
-      String *folder = String_Cat(Path_Combine(env->globals.pkgpath, root->base), j == 0 ? "/inc" : "/src");
+      String *folder = String_Cat(Path_Combine(env->path, root->base), i == 0 ? "/inc" : "/src");
 
       for (DirectoryIterator *di = dopen(folder->base); di; dnext(&di)) {
         if (di->current.type == DIRTYPE_FILE) {
-          CacheRecord *record = CacheFile_GetKey(files, di->current.name);
+          char filepath[PATH_MAX];
 
-          if (record && record->timestamp > env->globals.pkgtime) {
-            CharStream *stream = (CharStream*)NEW (FileStream)(fopen(record->value, "r"));
+          dfullname(di, sizeof(filepath), filepath);
 
-            while (!stream->base.eos) {
-              String *line = CharStream_GetLine(stream);
+          long         timestamp = statfile(filepath);
+          CacheRecord *record    = CacheFile_GetKey(files, di->current.name);
 
-              if (line) {
-                if (String_StartsWith(line, "#include")) {
-                  String_SubString(line, 8, 0);
-                  String_Trim(line);
+          if (!record || timestamp > record->timestamp)
+          {
+            record = CacheFile_Set(files, NEW (String) (di->current.name), NEW (String) (filepath),  timestamp);
+            
+            CacheFile_Set(cache, NEW (String) (di->current.name), NEW (String) (env->path), timestamp);
 
-                  if (String_StartsWith(line, "<")) {
-                    int end = line->length - String_Cnt(line, ">");
-
-                    String_SubString(line, 1, -end);
-
-                    if (CacheFile_Get(files, line)) {
-                      Graph_AddKey((Graph*)dependencies, di->current.name);
-                      Graph_AddKey((Graph*)dependencies, line->base);
-
-                      Graph_SetKey((Graph*)dependencies, di->current.name, line->base, 0);
-                    } else {
-                      return 0;
-                    }
-                  }
-                }
-              }
-
-              DELETE (line);
-            }
-
-            DELETE (stream);
+            Array_push(env->update, &record);
           }
         }
       }
@@ -138,100 +100,183 @@ int update_graph(Env *env, CacheFile *cache, CacheFile *files, GraphFile *depend
 
   DELETE (roots);
   DELETE (rootpath);
-
-  return 1;
 }
 
-void get_includes(CacheFile *cache, Set *packages, Set *includes, List *travelled, const char *filename, Env *env)
+void update_graph(Env *env, CacheFile *cache, CacheFile *fileCache, GraphFile *files, GraphFile *packages)
 {
-  
-}
+  for (Iterator *it = NEW (Iterator) (env->updated); !done(it); next(it)) {
+    CacheRecord *record = *(CacheRecord**)it->base;
+    CharStream  *stream = (CharStream*)FileStream_Open(record->value->base, ACCESS_READ);
 
-// TODO: Provide functions to partially update cache
+    String *file = record->value;
 
-void get_files(MapFile *depends, CacheFile *cache, Set *packages, const char *package, Env *env)
-{  
-  for (Iterator *it = NEW (Iterator) (cache); !done(it); next(it))
-  {
-    KeyVal *keyval = it->base;
+    String *srcPkg  = CacheFile_Get(cache, file)->value;
+    String *srcPath = Path_Folder(CacheFile_Get(fileCache, file)->value);
 
-    if (String_Eq(keyval->base.second, package)) {
-      // This is part of the package
-      String *filename = keyval->base.first;
+    while (!stream->base.eos) {
+      String *line = CharStream_GetLine(stream);
 
-      char ext[8];
+      if (line) {
+        if (String_StartsWith(line, "#include")) {
+          String_SubString(line, 8, 0);
+          String_Trim(line);
 
-      fileext(filename->base, sizeof(ext), ext);
+          if (String_StartsWith(line, "<")) {
+            int end = line->length - String_Cnt(line, ">");
 
-      if ((env->source && (!strcmp(ext, ".c") || !strcmp(ext, ".cpp")))
-      || (!env->source && (!strcmp(ext, ".h") || !strcmp(ext, ".hpp")))) {
-        Set *includes = IFNULL(
-          Map_ValueAt((Map*)depends, filename),
-          Map_Set((Map*)depends,
-                    String_Copy(filename),
-                    NEW (Set) (TYPEOF (String))
-                  )->second);
-        
-        get_includes(cache, packages, includes, travelled, filename, env);
+            String_SubString(line, 1, -end);
 
-        DELETE (travelled);
+            CacheRecord *include = CacheFile_Get(cache, line);
+
+            if (include) {
+              String *dstPkg  = include->value;
+              String *dstPath = Path_Folder(CacheFile_Get(fileCache, line)->value->base);
+
+              if (srcPkg && dstPkg) {
+                // Package graph
+                Graph_AddKey(packages, srcPkg->base);
+                Graph_AddKey(packages, dstPkg->base);
+
+                Graph_SetKey(packages, srcPkg->base, dstPkg->base, 1);
+              }
+
+              if (srcPath && dstPath) {
+                // Files graph
+                Graph_AddKey(files, srcPath->base);
+                Graph_AddKey(files, dstPath->base);
+
+                Graph_SetKey(files, srcPath->base, dstPath->base, 1);
+              }
+
+              DELETE (dstPath)
+            }
+          }
+        }
       }
 
+      DELETE (line);
+    }
+
+    DELETE (stream);
+  }
+  
+  DELETE (env->updated)
+}
+
+Matrix *get_matrix(Graph *dependencies)
+{
+  return Matrix_Pow(Graph_AdjacendyMatrix(dependencies), dependencies->base.rows);
+}
+
+void get_dependencies(CacheFile *cache, Matrix *reach, Set *labels, Set *deps, const char *target)
+{  
+  int index = Set_ContainsKey(labels, target);
+
+  if (index >= 0) {
+    for (int i = 0; i < ((Array*)labels)->size; i++) {
+      // This package is a dependency
+      if (reach->base[index][i] > 0) {
+        String *label = Array_At(((Array*)labels), i);
+
+        Set_Add(deps, NEW (Dependency) (label, reach, labels));
+      }
     }
   }
 }
 
+void get_files(Env *env, Map *depends, CacheFile *cache, CacheFile *files, Graph *deps)
+{  
+  Matrix    *reach  = get_matrix(deps);
+  const Set *labels = deps->labels;
+
+  for (Iterator *it = NEW (Iterator) (cache); !done(it); next(it))
+  {
+    Pair *pair = it->base;
+
+    if (String_Eq(pair->second, env->name)) {
+      // This is part of the package
+      String *filename = pair->first;
+      String *filepath = Path_Folder(CacheFile_Get(files, filename)->value->base);
+      
+      Set *includes = IFNULL(
+        Map_ValueAt((Map*)depends, filename),
+        Map_Set((Map*)depends,
+                  String_Copy(filename),
+                  NEW (Set) (TYPEOF (String))
+                )->second);
+
+      get_dependencies(cache, reach, labels, includes, filepath->base);
+    }
+  }
+
+  DELETE (reach);
+}
+
 int main(int argc, char *argv[])
 {
-  Env env = { getenv("CUT_HOME"), 0, 0 };
+  Env env = { getenv("CUT_HOME"), NULL, NULL, 0, 0 };
 
   CHECK_MEMORY
 
-  Args       *args         = NEW (Args) (argc, argv, &env);
-  const char *workdir      = Args_Name(args, "working-directory").as_charptr;
-  String     *dependsfile  = Path_Combine(workdir, ".cut/depends.map");
-  String     *cachepath    = NULL;
-  String     *filespath    = NULL;
-  String     *packagespath = NULL;
-  String     *dependsgraph = NULL;
+  Args       *args          = NEW (Args) (argc, argv, &env);
+ // const char *workdir      = Args_Name(args, "working-directory").as_charptr;
+  String     *dependsfile   = Path_Combine(env.path, ".cut/depends.map");
+  String     *cachepath     = NULL;
+  String     *filescpath    = NULL;
+  String     *packagescpath = NULL;
+  String     *filesgpath    = NULL;
+  String     *packagesgpath = NULL;
 
   if (!env.home || !env.home[0]) {
     THROW (NEW (Exception) ("No CUT_HOME environment variable defined... exiting!"));
   } else {
-    cachepath    = Path_Combine(env.home, "CUT/.cut/.cache");
-    filespath    = Path_Combine(env.home, "CUT/.cut/files.cache");
-    packagespath = Path_Combine(env.home, "CUT/.cut/packages.cache");
-    dependsgraph = Path_Combine(env.home, "CUT/.cut/dependencies.json");
+    cachepath     = Path_Combine(env.home, "CUT/.cut/.cache");
+    filescpath    = Path_Combine(env.home, "CUT/.cut/files.cache");
+    packagescpath = Path_Combine(env.home, "CUT/.cut/packages.cache");
+    filesgpath    = Path_Combine(env.home, "CUT/.cut/files.json");
+    packagesgpath = Path_Combine(env.home, "CUT/.cut/packages.json");
   }
 
   // TODO: finish this
 
-  CacheFile *cache    = NEW (CacheFile) (cachepath->base,    ACCESS_WRITE | ACCESS_READ);
-  CacheFile *files    = NEW (CacheFile) (filespath->base,    ACCESS_WRITE | ACCESS_READ);
-  CacheFile *packages = NEW (CacheFile) (packagespath->base, ACCESS_WRITE | ACCESS_READ);
-  GraphFile *graph    = NEW (GraphFile) (dependsgraph->base, ACCESS_WRITE | ACCESS_READ);
+  CacheFile *cache         = NEW (CacheFile) (cachepath->base,     ACCESS_WRITE | ACCESS_READ);
+  CacheFile *filescache    = NEW (CacheFile) (filescpath->base,    ACCESS_WRITE | ACCESS_READ);
+  CacheFile *packagescache = NEW (CacheFile) (packagescpath->base, ACCESS_WRITE | ACCESS_READ);
+  GraphFile *filesgraph    = NEW (GraphFile) (filesgpath->base,    ACCESS_WRITE | ACCESS_READ);
+  GraphFile *packagesgraph = NEW (GraphFile) (packagesgpath->base, ACCESS_WRITE | ACCESS_READ);
   
-  int pkgtime = update_cache(&env, packages, files, cache);
-  int success = update_graph(&env, packages, files, cache, graph);
+  update_cache(&env, cache, packagescache, filescache);
+  update_graph(&env, cache, filescache, filesgraph, packagesgraph);
   
-  MapFile   *depends  = NEW (MapFile)   (dependsfile->base, ACCESS_WRITE | (env.update * ACCESS_READ));
+  DependsFile *depends  = NEW (DependsFile) (dependsfile->base, ACCESS_WRITE);
   
-  Set       *packages = IFNULL(
+  Set *packages = IFNULL(
       Map_ValueAtKey((Map*)depends, "packages"), 
       Map_Set((Map*)depends,
                 NEW (String) ("packages"),
                 NEW (Set) (TYPEOF (String))
               )->second);
 
-  // Custom comparer to add dependencies in order
-  // packages->comparer = 
+  Matrix    *reach  = get_matrix(packagesgraph);
+  const Set *labels = ((Graph*)packagesgraph)->labels;
 
-  get_files(depends, cache, packages, workdir, &env);
+  get_dependencies(cache, reach, labels, packages, env.name);
+  get_files(&env, (Map*)depends, cache, filescache, filesgraph);
 
-  DELETE (cache)
+  
+  DELETE (reach);
   DELETE (depends);
-  DELETE (dependsfile);
+  DELETE (packagesgraph);
+  DELETE (filesgraph);
+  DELETE (packagescache);
+  DELETE (filescache);
+  DELETE (cache);
+  DELETE (packagesgpath);
+  DELETE (filesgpath);
+  DELETE (packagescpath);
+  DELETE (filescpath);
   DELETE (cachepath);
+  DELETE (dependsfile);
   DELETE (args);
 
   CHECK_MEMORY

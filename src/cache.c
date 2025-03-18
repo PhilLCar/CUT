@@ -13,7 +13,6 @@
 /*
 The goal of this program is to build cache data that is effective enough
 while remaining simple enough to be compatible with the bootstrap
-
 */
 
 typedef struct {
@@ -30,9 +29,9 @@ OPTIONS(
   { "source", 's', "Include sources in search for dependencies", ARG_TYPE_BOOLEAN, option_source }
 );
 
-void build_cache(Env *env, CacheFile *cache, CacheFile *pkgCache, CacheFile *fileCache)
+void build_cache(Env *env, CacheFile *cache, CacheFile *fileCache, CacheFile *pkgCache)
 {
-  // TODO: (low): Standardize: standardize DirectoryIterator with Iterator
+  // TODO: (low): Standardize: standardize DirectoryIterator with Iterator (beware of impact on dep tree)
   for (DirectoryIterator *di = dopen(env->home); di; dnext(&di)) {
     if (di->current.type == DIRTYPE_DIRECTORY && di->current.name[0] != '.') {
       char      pkgpath[PATH_MAX];
@@ -44,9 +43,9 @@ void build_cache(Env *env, CacheFile *cache, CacheFile *pkgCache, CacheFile *fil
 
       if (fileexists(rootpath->base, FILE_EXISTS)) {
         // We're in a CUT project
-        CacheRecord *package = CacheFile_Set(pkgCache, NEW (String) (di->current.name), NEW (String) (pkgpath), 0);
-        long         pkgtime = 0;
-        RootFile    *roots   = NEW (RootFile) (rootpath->base, ACCESS_READ);
+        RootFile *roots = NEW (RootFile) (rootpath->base, ACCESS_READ);
+
+        CacheFile_Set(pkgCache, NEW (String) (di->current.name), NEW (String) (pkgpath), 0);
 
         for (Iterator *it = NEW (Iterator) (roots); !done(it); next(it)) {
           String *root = it->base;
@@ -63,8 +62,6 @@ void build_cache(Env *env, CacheFile *cache, CacheFile *pkgCache, CacheFile *fil
 
                 long timestamp = statfile(filepath);
 
-                if (timestamp > pkgtime) pkgtime = timestamp;
-
                 CacheFile_Set(fileCache, NEW (String) (dj->current.name), NEW (String) (filepath),         timestamp);
                 CacheFile_Set(cache,     NEW (String) (dj->current.name), NEW (String) (di->current.name), timestamp);
               }
@@ -74,8 +71,6 @@ void build_cache(Env *env, CacheFile *cache, CacheFile *pkgCache, CacheFile *fil
           }
         }
 
-        package->timestamp = pkgtime;
-
         DELETE (roots);
       }
 
@@ -84,6 +79,7 @@ void build_cache(Env *env, CacheFile *cache, CacheFile *pkgCache, CacheFile *fil
   }
 }
 
+// TODO: It's potentially useless to build the file graph if we don't generate the depends file
 void build_graph(Env *env, CacheFile *cache, CacheFile *fileCache,  Graph *fileDeps, Graph *pkgDeps)
 {
   for (Iterator *it = NEW (Iterator) (fileCache); !done(it); next(it))
@@ -91,7 +87,10 @@ void build_graph(Env *env, CacheFile *cache, CacheFile *fileCache,  Graph *fileD
     String *file = ((Pair*)it->base)->first;
     String *path = ((CacheRecord*)((Pair*)it->base)->second)->value;
 
-    CharStream *stream = (CharStream*)FileStream_Open(path->base, ACCESS_READ);
+    String *srcPkg  = CacheFile_Get(cache, file)->value;
+    String *srcPath = Path_Folder(path->base);
+
+    CharStream  *stream = (CharStream*)FileStream_Open(path->base, ACCESS_READ);
 
     while (!stream->base.eos) {
       String *line = CharStream_GetLine(stream);
@@ -106,21 +105,29 @@ void build_graph(Env *env, CacheFile *cache, CacheFile *fileCache,  Graph *fileD
 
             String_SubString(line, 1, -end);
 
-            CacheRecord *src = CacheFile_Get(cache, file);
-            CacheRecord *dst = CacheFile_Get(cache, line);
+            CacheRecord *include = CacheFile_Get(cache, line);
 
-            if (src && dst) {
-              // Files graph
-              Graph_AddKey(fileDeps, file->base);
-              Graph_AddKey(fileDeps, line->base);
+            if (include) {
+              String *dstPkg  = include->value;
+              String *dstPath = Path_Folder(CacheFile_Get(fileCache, line)->value->base);
 
-              Graph_SetKey(fileDeps, file->base, line->base, 1);
+              if (srcPkg && dstPkg) {
+                // Package graph
+                Graph_AddKey(pkgDeps, srcPkg->base);
+                Graph_AddKey(pkgDeps, dstPkg->base);
 
-              // Package graph
-              Graph_AddKey(pkgDeps, src->value->base);
-              Graph_AddKey(pkgDeps, dst->value->base);
+                Graph_SetKey(pkgDeps, srcPkg->base, dstPkg->base, 1);
+              }
 
-              Graph_SetKey(pkgDeps, src->value->base, dst->value->base, 1);
+              if (srcPath && dstPath) {
+                // Files graph
+                Graph_AddKey(fileDeps, srcPath->base);
+                Graph_AddKey(fileDeps, dstPath->base);
+
+                Graph_SetKey(fileDeps, srcPath->base, dstPath->base, 1);
+              }
+
+              DELETE (dstPath)
             }
           }
         }
@@ -129,6 +136,7 @@ void build_graph(Env *env, CacheFile *cache, CacheFile *fileCache,  Graph *fileD
       DELETE (line);
     }
 
+    DELETE (srcPath);
     DELETE (stream);
   }
 }
@@ -168,7 +176,7 @@ int main(int argc, char *argv[])
   CHECK_MEMORY
 
   build_cache(&env, cache, fileCache, pkgCache);
-  build_graph(&env, cache, fileCache, fileDeps, pkgDeps);
+  build_graph(&env, cache, fileCache, (Graph*)fileDeps, (Graph*)pkgDeps);
 
   CHECK_MEMORY
 

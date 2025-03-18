@@ -1,16 +1,16 @@
-#ifndef MAPFILE_H
-#define MAPFILE_H
+#ifndef DEPENDSFILE_H
+#define DEPENDSFILE_H
 
 // CUT
 #include <diagnostic.h>
 #include <oop.h>
 #include <map.h>
-#include <str.h>
+#include <dependency.h>
 #include <filestream.h>
 #include <charstream.h>
 #include <set.h>
 
-#define TYPENAME MapFile
+#define TYPENAME DependsFile
 
 OBJECT (const char *filename, AccessModes mode) INHERIT (Map)
   const char  *filename;
