@@ -80,14 +80,14 @@ void build_cache(Env *env, CacheFile *cache, CacheFile *fileCache, CacheFile *pk
 }
 
 // TODO: It's potentially useless to build the file graph if we don't generate the depends file
-void build_graph(Env *env, CacheFile *cache, CacheFile *fileCache,  Graph *fileDeps, Graph *pkgDeps)
+void build_graph(Env *env, CacheFile *cache, CacheFile *fileCache, CacheFile *pkgCache,  Graph *fileDeps, Graph *pkgDeps)
 {
   for (Iterator *it = NEW (Iterator) (fileCache); !done(it); next(it))
   {
     String *file = ((Pair*)it->base)->first;
     String *path = ((CacheRecord*)((Pair*)it->base)->second)->value;
 
-    String *srcPkg  = CacheFile_Get(cache, file)->value;
+    String *srcPkg  = CacheFile_Get(pkgCache, CacheFile_Get(cache, file)->value)->value;
     String *srcPath = Path_Folder(path->base);
 
     CharStream  *stream = (CharStream*)FileStream_Open(path->base, ACCESS_READ);
@@ -108,7 +108,7 @@ void build_graph(Env *env, CacheFile *cache, CacheFile *fileCache,  Graph *fileD
             CacheRecord *include = CacheFile_Get(cache, line);
 
             if (include) {
-              String *dstPkg  = include->value;
+              String *dstPkg  = CacheFile_Get(pkgCache, include->value)->value;
               String *dstPath = Path_Folder(CacheFile_Get(fileCache, line)->value->base);
 
               if (srcPkg && dstPkg) {
@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
   CHECK_MEMORY
 
   build_cache(&env, cache, fileCache, pkgCache);
-  build_graph(&env, cache, fileCache, (Graph*)fileDeps, (Graph*)pkgDeps);
+  build_graph(&env, cache, fileCache, pkgCache, (Graph*)fileDeps, (Graph*)pkgDeps);
 
   CHECK_MEMORY
 

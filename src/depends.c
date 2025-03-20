@@ -42,7 +42,7 @@ void param_workdir(Args *args, ArgValue value)
   Env *env = args->env;
 
   // TODO: add system("pwd") to IO library for windows
-  const char *path =  strcmp(value.as_integer, ".") ? value.as_integer : system("pwd");
+  const char *path =  strcmp(value.as_charptr, ".") ? value.as_charptr : "/home/phil/Program/Utilities/CUT"; // TODO: Change!!
   
   int pathlen = strlen(path);
   int namelen = filenamewopath(path, 0, NULL);
@@ -64,7 +64,7 @@ void update_cache(Env *env, CacheFile *cache, CacheFile *packages, CacheFile *fi
 
   if (!CacheFile_GetKey(packages, env->name))
   {
-    CacheFile_Set(packages, env->name, NEW (String) (env->path), 0);
+    CacheFile_Set(packages, NEW (String) (env->name), NEW (String) (env->path), 0);
   }
 
   for (Iterator *it = NEW (Iterator)(roots); !done(it); next(it)) {
@@ -85,11 +85,13 @@ void update_cache(Env *env, CacheFile *cache, CacheFile *packages, CacheFile *fi
 
           if (!record || timestamp > record->timestamp)
           {
-            record = CacheFile_Set(files, NEW (String) (di->current.name), NEW (String) (filepath),  timestamp);
-            
-            CacheFile_Set(cache, NEW (String) (di->current.name), NEW (String) (env->path), timestamp);
+            String *file = NEW (String) (di->current.name);
 
-            Array_push(env->update, &record);
+            record = CacheFile_Set(files, file, NEW (String) (filepath),  timestamp);
+            
+            CacheFile_Set(cache, String_Copy(file), NEW (String) (env->name), timestamp);
+
+            Array_Push(env->updated, &file);
           }
         }
       }
@@ -102,16 +104,14 @@ void update_cache(Env *env, CacheFile *cache, CacheFile *packages, CacheFile *fi
   DELETE (rootpath);
 }
 
-void update_graph(Env *env, CacheFile *cache, CacheFile *fileCache, GraphFile *files, GraphFile *packages)
+void update_graph(Env *env, CacheFile *cache, CacheFile *fileCache, Graph *files, Graph *packages)
 {
   for (Iterator *it = NEW (Iterator) (env->updated); !done(it); next(it)) {
-    CacheRecord *record = *(CacheRecord**)it->base;
-    CharStream  *stream = (CharStream*)FileStream_Open(record->value->base, ACCESS_READ);
-
-    String *file = record->value;
-
+    String *file    = *(String**)it->base;
     String *srcPkg  = CacheFile_Get(cache, file)->value;
-    String *srcPath = Path_Folder(CacheFile_Get(fileCache, file)->value);
+    String *srcPath = Path_Folder(CacheFile_Get(fileCache, file)->value->base);
+
+    CharStream *stream = (CharStream*)FileStream_Open(srcPath->base, ACCESS_READ);
 
     while (!stream->base.eos) {
       String *line = CharStream_GetLine(stream);
@@ -158,6 +158,7 @@ void update_graph(Env *env, CacheFile *cache, CacheFile *fileCache, GraphFile *f
     }
 
     DELETE (stream);
+    DELETE (srcPath);
   }
   
   DELETE (env->updated)
@@ -165,18 +166,18 @@ void update_graph(Env *env, CacheFile *cache, CacheFile *fileCache, GraphFile *f
 
 Matrix *get_matrix(Graph *dependencies)
 {
-  return Matrix_Pow(Graph_AdjacendyMatrix(dependencies), dependencies->base.rows);
+  return Matrix_Pow(Graph_AdjacencyMatrix(dependencies), dependencies->base.rows);
 }
 
-void get_dependencies(CacheFile *cache, Matrix *reach, Set *labels, Set *deps, const char *target)
+void get_dependencies(const Matrix *reach, const Set *labels, const char *target, Set *deps)
 {  
   int index = Set_ContainsKey(labels, target);
 
   if (index >= 0) {
-    for (int i = 0; i < ((Array*)labels)->size; i++) {
+    for (int i = 0; i < ((const Array*)labels)->size; i++) {
       // This package is a dependency
       if (reach->base[index][i] > 0) {
-        String *label = Array_At(((Array*)labels), i);
+        const char *label = Array_AtDeref(((const Array*)labels), i);
 
         Set_Add(deps, NEW (Dependency) (label, reach, labels));
       }
@@ -191,9 +192,10 @@ void get_files(Env *env, Map *depends, CacheFile *cache, CacheFile *files, Graph
 
   for (Iterator *it = NEW (Iterator) (cache); !done(it); next(it))
   {
-    Pair *pair = it->base;
+    Pair   *pair    = it->base;
+    String *package = ((CacheRecord*)pair->second)->value;
 
-    if (String_Eq(pair->second, env->name)) {
+    if (String_Eq(package, env->name)) {
       // This is part of the package
       String *filename = pair->first;
       String *filepath = Path_Folder(CacheFile_Get(files, filename)->value->base);
@@ -202,10 +204,12 @@ void get_files(Env *env, Map *depends, CacheFile *cache, CacheFile *files, Graph
         Map_ValueAt((Map*)depends, filename),
         Map_Set((Map*)depends,
                   String_Copy(filename),
-                  NEW (Set) (TYPEOF (String))
+                  NEW (Set) (TYPEOF (Dependency))
                 )->second);
 
-      get_dependencies(cache, reach, labels, includes, filepath->base);
+      get_dependencies(reach, labels, filepath->base, includes);
+
+      DELETE(filepath);
     }
   }
 
@@ -214,7 +218,7 @@ void get_files(Env *env, Map *depends, CacheFile *cache, CacheFile *files, Graph
 
 int main(int argc, char *argv[])
 {
-  Env env = { getenv("CUT_HOME"), NULL, NULL, 0, 0 };
+  Env env = { getenv("CUT_HOME"), NULL, NULL, 0, 0, NEW (Array) (sizeof (CacheRecord*)) };
 
   CHECK_MEMORY
 
@@ -246,7 +250,7 @@ int main(int argc, char *argv[])
   GraphFile *packagesgraph = NEW (GraphFile) (packagesgpath->base, ACCESS_WRITE | ACCESS_READ);
   
   update_cache(&env, cache, packagescache, filescache);
-  update_graph(&env, cache, filescache, filesgraph, packagesgraph);
+  update_graph(&env, cache, filescache, (Graph*)filesgraph, (Graph*)packagesgraph);
   
   DependsFile *depends  = NEW (DependsFile) (dependsfile->base, ACCESS_WRITE);
   
@@ -254,16 +258,15 @@ int main(int argc, char *argv[])
       Map_ValueAtKey((Map*)depends, "packages"), 
       Map_Set((Map*)depends,
                 NEW (String) ("packages"),
-                NEW (Set) (TYPEOF (String))
+                NEW (Set) (TYPEOF (Dependency))
               )->second);
 
-  Matrix    *reach  = get_matrix(packagesgraph);
+  Matrix    *reach  = get_matrix((Graph*)packagesgraph);
   const Set *labels = ((Graph*)packagesgraph)->labels;
 
-  get_dependencies(cache, reach, labels, packages, env.name);
-  get_files(&env, (Map*)depends, cache, filescache, filesgraph);
+  get_dependencies(reach, labels, env.path, packages);
+  get_files(&env, (Map*)depends, cache, filescache, (Graph*)filesgraph);
 
-  
   DELETE (reach);
   DELETE (depends);
   DELETE (packagesgraph);
@@ -278,6 +281,8 @@ int main(int argc, char *argv[])
   DELETE (cachepath);
   DELETE (dependsfile);
   DELETE (args);
+
+  DELETE (env.updated);
 
   CHECK_MEMORY
   STOP_WATCHING
